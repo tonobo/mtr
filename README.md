@@ -2,6 +2,11 @@
 
 A MTR implementation written in golang, completly without shell-execs.
 
+Just install with the following command:
+```
+go get -u github.com/tonobo/mtr
+```
+
 **Note: This tool mayby called with sudo or as root, because it requires raw sockets.**
 
 ## Output
