@@ -36,3 +36,9 @@ Flags:
   -t, --timeout duration    ICMP reply timeout (default 800ms)
 ```
 
+## Roadmap
+
+* [ ] IPv6 Support
+* [ ] HTTP API (Launch MTR and just receive Updates - Grpc, Websocket, HTTP-Polling?)
+* [ ] PTR Lookup
+* [ ] AS-Number Lookup
