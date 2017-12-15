@@ -2,7 +2,7 @@
 
 A MTR implementation written in golang, completly without shell-execs.
 
-**Note: This tool mayby called with sudo or as root, because it will open raw sockets.**
+**Note: This tool mayby called with sudo or as root, because it requires raw sockets.**
 
 ## Output
 
