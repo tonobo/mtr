@@ -42,3 +42,4 @@ Flags:
 * [ ] HTTP API (Launch MTR and just receive Updates - Grpc, Websocket, HTTP-Polling?)
 * [ ] PTR Lookup
 * [ ] AS-Number Lookup
+* [ ] Multi-Target Support at Hop-Level
