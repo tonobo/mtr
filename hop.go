@@ -4,6 +4,8 @@ import (
 	"container/ring"
 	"fmt"
 	"time"
+
+	gm "github.com/buger/goterm"
 )
 
 type HopStatistic struct {
@@ -17,16 +19,15 @@ type HopStatistic struct {
 }
 
 func (h *HopStatistic) Render(ttl int) {
-	failedCounter := 0
-	successCounter := 0
+	packets := []byte{}
 	h.Packets.Do(func(f interface{}) {
 		if f == nil {
 			return
 		}
 		if !f.(ICMPReturn).Success {
-			failedCounter++
+			packets = append(packets, '?')
 		} else {
-			successCounter++
+			packets = append(packets, '.')
 		}
 	})
 	addr := "???"
@@ -37,7 +38,8 @@ func (h *HopStatistic) Render(ttl int) {
 	if !(h.Sent-h.Lost == 0) {
 		avg = h.SumElapsed.Seconds() * 1000 / float64(h.Sent-h.Lost)
 	}
-	fmt.Printf("%3d:|-- %-20s  %5.1f%%  %4d  %6.1f  %6.1f  %6.1f  %6.1f\n",
+	l := fmt.Sprintf("%d", RING_BUFFER_SIZE)
+	gm.Printf("%3d:|-- %-20s  %5.1f%%  %4d  %6.1f  %6.1f  %6.1f  %6.1f  %"+l+"s\n",
 		ttl,
 		addr,
 		float32(h.Lost)/float32(h.Sent)*100.0,
@@ -46,5 +48,6 @@ func (h *HopStatistic) Render(ttl int) {
 		avg,
 		h.Best.Elapsed.Seconds()*1000,
 		h.Worst.Elapsed.Seconds()*1000,
+		packets,
 	)
 }

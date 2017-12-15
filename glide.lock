@@ -1,0 +1,21 @@
+hash: 0f613f0db12b08730f998022b976e8beaec6a78943f28b6af6975735514f4059
+updated: 2017-12-14T23:50:25.248583446+01:00
+imports:
+- name: github.com/buger/goterm
+  version: ef0fa5b75d0fa2b31323463783a6e90353771116
+- name: github.com/inconshreveable/mousetrap
+  version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
+- name: github.com/spf13/cobra
+  version: ccaecb155a2177302cb56cae929251a256d0f646
+- name: github.com/spf13/pflag
+  version: 4c012f6dcd9546820e378d0bdda4d8fc772cdfea
+- name: golang.org/x/net
+  version: d866cfc389cec985d6fda2859936a575a55a3ab6
+  subpackages:
+  - bpf
+  - icmp
+  - internal/iana
+  - internal/socket
+  - ipv4
+  - ipv6
+testImports: []

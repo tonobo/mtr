@@ -1,0 +1,8 @@
+package: github.com/tonobo/mtr
+import:
+- package: github.com/buger/goterm
+- package: github.com/spf13/cobra
+- package: golang.org/x/net
+  subpackages:
+  - icmp
+  - ipv4

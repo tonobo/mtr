@@ -7,20 +7,26 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	gm "github.com/buger/goterm"
 )
 
 type MTR struct {
 	mutex     *sync.RWMutex
+	timeout   time.Duration
+	interval  time.Duration
 	Address   string                `json:"destination"`
 	Statistic map[int]*HopStatistic `json:"statistic"`
 }
 
-func NewMTR(addr string) *MTR {
+func NewMTR(addr string, timeout time.Duration, interval time.Duration) (*MTR, chan struct{}) {
 	return &MTR{
+		interval:  interval,
+		timeout:   timeout,
 		Address:   addr,
 		mutex:     &sync.RWMutex{},
 		Statistic: map[int]*HopStatistic{},
-	}
+	}, make(chan struct{})
 }
 
 func (m *MTR) registerStatistic(ttl int, r ICMPReturn) {
@@ -41,7 +47,6 @@ func (m *MTR) registerStatistic(ttl int, r ICMPReturn) {
 		return
 	}
 	s := m.Statistic[ttl]
-	s.Packets = s.Packets.Next()
 	s.Packets.Value = r
 	s.Sent++
 	s.SumElapsed = r.Elapsed + s.SumElapsed
@@ -55,25 +60,30 @@ func (m *MTR) registerStatistic(ttl int, r ICMPReturn) {
 	if s.Worst.Elapsed < r.Elapsed {
 		s.Worst = r
 	}
+	s.Packets = s.Packets.Next()
 }
 
-func (m *MTR) Render() {
-	fmt.Printf("HOP:    %-20s  %5s%%  %4s  %6s  %6s  %6s  %6s\n", "Address", "Loss", "Sent", "Last", "Avg", "Best", "Worst")
+func (m *MTR) Render(offset int) {
+	gm.MoveCursor(1, offset)
+	l := fmt.Sprintf("%d", RING_BUFFER_SIZE)
+	gm.Printf("HOP:    %-20s  %5s%%  %4s  %6s  %6s  %6s  %6s  %"+l+"s\n", "Address", "Loss", "Sent", "Last", "Avg", "Best", "Worst", "Packets")
 	for i := 1; i <= len(m.Statistic); i++ {
+		gm.MoveCursor(1, offset+i)
 		m.mutex.RLock()
 		m.Statistic[i].Render(i)
 		m.mutex.RUnlock()
 	}
+	return
 }
 
-func (m *MTR) Run() {
+func (m *MTR) Run(ch chan struct{}) {
 	ipAddr := net.IPAddr{IP: net.ParseIP(m.Address)}
 	pid := os.Getpid() & 0xffff
-	timeout := 500 * time.Millisecond
 	ttlDoubleBump := false
 
 	for ttl := 1; ttl < 64; ttl++ {
-		hopReturn, err := Icmp("0.0.0.0", &ipAddr, ttl, pid, timeout)
+		time.Sleep(m.interval)
+		hopReturn, err := Icmp("0.0.0.0", &ipAddr, ttl, pid, m.timeout)
 		if err != nil || !hopReturn.Success {
 			if ttlDoubleBump {
 				break
@@ -81,6 +91,7 @@ func (m *MTR) Run() {
 			m.mutex.Lock()
 			m.registerStatistic(ttl, hopReturn)
 			m.mutex.Unlock()
+			ch <- struct{}{}
 			ttlDoubleBump = true
 			continue
 		}
@@ -88,6 +99,7 @@ func (m *MTR) Run() {
 		m.mutex.Lock()
 		m.registerStatistic(ttl, hopReturn)
 		m.mutex.Unlock()
+		ch <- struct{}{}
 		if hopReturn.Addr == m.Address {
 			break
 		}
