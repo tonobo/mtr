@@ -26,6 +26,51 @@ HOP:    Address                Loss%  Sent    Last     Avg    Best   Worst      
   9:|-- 8.8.8.8                 0.0%     5    23.9    24.2    23.6    25.0          ....
 ```
 
+**JSON:**
+
+```json
+{
+  "destination": "8.8.8.8",
+  "statistic": {
+    "1": {
+      "avg_ms": 1.3946096666666667,
+      "best_ms": 1.3157679999999998,
+      "last_ms": 1.322044,
+      "loss_percent": 0,
+      "packet_buffer_size": 10,
+      "packet_list_ms": [
+        {
+          "respond_ms": 1.322044,
+          "success": true
+        },
+        {
+          "respond_ms": 1.3157679999999998,
+          "success": true
+        },
+        {
+          "respond_ms": 1.546017,
+          "success": true
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "sent": 3,
+      "target": "10.200.1.1",
+      "ttl": 1,
+      "worst_ms": 1.546017
+    },
+    "2": {
+      // ...
+    }
+  }
+}
+```
+
 ## Usage
 
 ```
@@ -37,6 +82,7 @@ Flags:
   -c, --count int           Amount of pings per target (default 5)
   -h, --help                help for mtr
   -i, --interval duration   Wait time between icmp packets before sending new one (default 100ms)
+      --json                Print json results
       --max-hops int        Maximal TTL count (default 64)
   -t, --timeout duration    ICMP reply timeout (default 800ms)
 ```
