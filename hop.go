@@ -4,12 +4,16 @@ import (
 	"container/ring"
 	"encoding/json"
 	"fmt"
+	"net"
 	"time"
 
 	gm "github.com/buger/goterm"
 )
 
 type HopStatistic struct {
+	dest       *net.IPAddr
+	timeout    time.Duration
+	pid        int
 	Sent       int
 	TTL        int
 	Target     string
@@ -26,8 +30,28 @@ type packet struct {
 	ResponseTime float64 `json:"respond_ms"`
 }
 
-func (h *HopStatistic) MarshalJSON() ([]byte, error) {
+func (s *HopStatistic) Next() {
+	r, _ := Icmp("0.0.0.0", s.dest, s.TTL, s.pid, s.timeout)
+	s.Packets = s.Packets.Prev()
+	s.Packets.Value = r
+	if s.Target == "" {
+		s.Target = r.Addr
+	}
+	s.Sent++
+	s.SumElapsed = r.Elapsed + s.SumElapsed
+	if !r.Success {
+		s.Lost++
+	}
+	s.Last = r
+	if s.Best.Elapsed > r.Elapsed {
+		s.Best = r
+	}
+	if s.Worst.Elapsed < r.Elapsed {
+		s.Worst = r
+	}
+}
 
+func (h *HopStatistic) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&struct {
 		Sent             int       `json:"sent"`
 		Target           string    `json:"target"`
