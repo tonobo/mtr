@@ -33,6 +33,8 @@ func (m *MTR) registerStatistic(ttl int, r ICMPReturn) {
 	if m.Statistic[ttl] == nil {
 		m.Statistic[ttl] = &HopStatistic{
 			Sent:       1,
+			TTL:        ttl,
+			Target:     r.Addr,
 			Last:       r,
 			Best:       r,
 			Worst:      r,
@@ -47,7 +49,11 @@ func (m *MTR) registerStatistic(ttl int, r ICMPReturn) {
 		return
 	}
 	s := m.Statistic[ttl]
+	s.Packets = s.Packets.Prev()
 	s.Packets.Value = r
+	if s.Target == "" {
+		s.Target = r.Addr
+	}
 	s.Sent++
 	s.SumElapsed = r.Elapsed + s.SumElapsed
 	if !r.Success {
@@ -60,7 +66,6 @@ func (m *MTR) registerStatistic(ttl int, r ICMPReturn) {
 	if s.Worst.Elapsed < r.Elapsed {
 		s.Worst = r
 	}
-	s.Packets = s.Packets.Next()
 }
 
 func (m *MTR) Render(offset int) {
@@ -70,7 +75,7 @@ func (m *MTR) Render(offset int) {
 	for i := 1; i <= len(m.Statistic); i++ {
 		gm.MoveCursor(1, offset+i)
 		m.mutex.RLock()
-		m.Statistic[i].Render(i)
+		m.Statistic[i].Render()
 		m.mutex.RUnlock()
 	}
 	return

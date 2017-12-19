@@ -7,6 +7,7 @@ import (
 	"time"
 
 	tm "github.com/buger/goterm"
+	pj "github.com/hokaccha/go-prettyjson"
 	"github.com/spf13/cobra"
 )
 
@@ -16,6 +17,7 @@ var (
 	INTERVAL         = 100 * time.Millisecond
 	MAX_HOPS         = 64
 	RING_BUFFER_SIZE = 50
+	jsonFmt          = false
 )
 
 // rootCmd represents the root command
@@ -25,8 +27,21 @@ var RootCmd = &cobra.Command{
 		if len(args) != 1 {
 			return errors.New("No target provided")
 		}
-		fmt.Println("Start:", time.Now())
 		m, ch := NewMTR(args[0], TIMEOUT, INTERVAL)
+		if jsonFmt {
+			go func(ch chan struct{}) {
+				for {
+					<-ch
+				}
+			}(ch)
+			for i := 0; i < COUNT; i++ {
+				m.Run(ch)
+			}
+			s, _ := pj.Marshal(m)
+			fmt.Println(string(s))
+			return nil
+		}
+		fmt.Println("Start:", time.Now())
 		tm.Clear()
 		mu := &sync.Mutex{}
 		go func(ch chan struct{}) {
@@ -60,4 +75,5 @@ func init() {
 	RootCmd.Flags().DurationVarP(&INTERVAL, "interval", "i", INTERVAL, "Wait time between icmp packets before sending new one")
 	RootCmd.Flags().IntVar(&MAX_HOPS, "max-hops", MAX_HOPS, "Maximal TTL count")
 	RootCmd.Flags().IntVar(&RING_BUFFER_SIZE, "buffer-size", RING_BUFFER_SIZE, "Cached packet buffer size")
+	RootCmd.Flags().BoolVar(&jsonFmt, "json", jsonFmt, "Print json results")
 }
