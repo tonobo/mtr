@@ -40,15 +40,16 @@ func (h *HopStatistic) MarshalJSON() ([]byte, error) {
 		TTL              int       `json:"ttl"`
 		Packets          []*packet `json:"packet_list_ms"`
 	}{
-		Sent:    h.Sent,
-		TTL:     h.TTL,
-		Loss:    h.Loss(),
-		Target:  h.Target,
-		Last:    h.Last.Elapsed.Seconds() * 1000,
-		Best:    h.Best.Elapsed.Seconds() * 1000,
-		Worst:   h.Worst.Elapsed.Seconds() * 1000,
-		Avg:     h.Avg(),
-		Packets: h.packets(),
+		Sent:             h.Sent,
+		TTL:              h.TTL,
+		Loss:             h.Loss(),
+		Target:           h.Target,
+		PacketBufferSize: RING_BUFFER_SIZE,
+		Last:             h.Last.Elapsed.Seconds() * 1000,
+		Best:             h.Best.Elapsed.Seconds() * 1000,
+		Worst:            h.Worst.Elapsed.Seconds() * 1000,
+		Avg:              h.Avg(),
+		Packets:          h.packets(),
 	})
 }
 
