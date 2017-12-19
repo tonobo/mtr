@@ -34,6 +34,7 @@ func (h *HopStatistic) MarshalJSON() ([]byte, error) {
 		Last             float64   `json:"last_ms"`
 		Best             float64   `json:"best_ms"`
 		Worst            float64   `json:"worst_ms"`
+		Loss             float64   `json:"loss_percent"`
 		Avg              float64   `json:"avg_ms"`
 		PacketBufferSize int       `json:"packet_buffer_size"`
 		TTL              int       `json:"ttl"`
@@ -41,6 +42,7 @@ func (h *HopStatistic) MarshalJSON() ([]byte, error) {
 	}{
 		Sent:    h.Sent,
 		TTL:     h.TTL,
+		Loss:    h.Loss(),
 		Target:  h.Target,
 		Last:    h.Last.Elapsed.Seconds() * 1000,
 		Best:    h.Best.Elapsed.Seconds() * 1000,
