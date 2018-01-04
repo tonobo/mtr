@@ -4,8 +4,8 @@ import (
 	"container/ring"
 	"fmt"
 	"net"
-	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	gm "github.com/buger/goterm"
@@ -17,10 +17,11 @@ type MTR struct {
 	interval  time.Duration
 	Address   string `json:"destination"`
 	hopsleep  time.Duration
+	requests  chan *ICMPRequest
 	Statistic map[int]*HopStatistic `json:"statistic"`
 }
 
-func NewMTR(addr string, timeout time.Duration, interval time.Duration, hopsleep time.Duration) (*MTR, chan struct{}) {
+func NewMTR(addr string, requests chan *ICMPRequest, timeout time.Duration, interval time.Duration, hopsleep time.Duration) (*MTR, chan struct{}) {
 	return &MTR{
 		interval:  interval,
 		timeout:   timeout,
@@ -28,10 +29,11 @@ func NewMTR(addr string, timeout time.Duration, interval time.Duration, hopsleep
 		Address:   addr,
 		mutex:     &sync.RWMutex{},
 		Statistic: map[int]*HopStatistic{},
+		requests:  requests,
 	}, make(chan struct{})
 }
 
-func (m *MTR) registerStatistic(ttl int, r ICMPReturn) *HopStatistic {
+func (m *MTR) registerStatistic(ttl int, r *ICMPReturn) *HopStatistic {
 	m.Statistic[ttl] = &HopStatistic{
 		Sent:       1,
 		TTL:        ttl,
@@ -43,6 +45,7 @@ func (m *MTR) registerStatistic(ttl int, r ICMPReturn) *HopStatistic {
 		Lost:       0,
 		SumElapsed: r.Elapsed,
 		Packets:    ring.New(RING_BUFFER_SIZE),
+		requests:   m.requests,
 	}
 	if !r.Success {
 		m.Statistic[ttl].Lost++
@@ -67,28 +70,41 @@ func (m *MTR) Render(offset int) {
 func (m *MTR) ping(ch chan struct{}, count int) {
 	for i := 0; i < count; i++ {
 		time.Sleep(m.interval)
+		counter := int32(0)
+		len_statistic := int32(len(m.Statistic))
 		for i := 1; i <= len(m.Statistic); i++ {
-			time.Sleep(m.hopsleep)
-			m.mutex.RLock()
-			m.Statistic[i].Next()
-			m.mutex.RUnlock()
-			ch <- struct{}{}
+			hop := m.Statistic[i]
+			go func(ch chan struct{}, hop *HopStatistic) {
+				hop.Next()
+				ch <- struct{}{}
+				atomic.AddInt32(&counter, 1)
+			}(ch, hop)
+		}
+		for {
+			if atomic.LoadInt32(&counter) == len_statistic {
+				counter = int32(0)
+				ch <- struct{}{}
+				break
+			}
 		}
 	}
 }
 
 func (m *MTR) Run(ch chan struct{}, count int) {
 	m.discover(ch)
-	m.ping(ch, count-1)
 }
 
 func (m *MTR) discover(ch chan struct{}) {
 	ipAddr := net.IPAddr{IP: net.ParseIP(m.Address)}
-	pid := os.Getpid() & 0xffff
 	ttlDoubleBump := false
 	for ttl := 1; ttl < MAX_HOPS; ttl++ {
 		time.Sleep(m.hopsleep)
-		hopReturn, err := Icmp("0.0.0.0", &ipAddr, ttl, pid, m.timeout)
+		hopReturn, err := Icmp(m.requests, &ICMPRequest{
+			DestAddr: &ipAddr,
+			TTL:      ttl,
+			ID:       123,
+			Timeout:  m.timeout,
+		})
 		if err != nil || !hopReturn.Success {
 			if ttlDoubleBump {
 				break
@@ -96,7 +112,6 @@ func (m *MTR) discover(ch chan struct{}) {
 			m.mutex.Lock()
 			s := m.registerStatistic(ttl, hopReturn)
 			s.dest = &ipAddr
-			s.pid = pid
 			m.mutex.Unlock()
 			ch <- struct{}{}
 			ttlDoubleBump = true
@@ -106,7 +121,6 @@ func (m *MTR) discover(ch chan struct{}) {
 		m.mutex.Lock()
 		s := m.registerStatistic(ttl, hopReturn)
 		s.dest = &ipAddr
-		s.pid = pid
 		m.mutex.Unlock()
 		ch <- struct{}{}
 		if hopReturn.Addr == m.Address {

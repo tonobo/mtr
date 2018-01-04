@@ -28,7 +28,9 @@ var RootCmd = &cobra.Command{
 		if len(args) != 1 {
 			return errors.New("No target provided")
 		}
-		m, ch := NewMTR(args[0], TIMEOUT, INTERVAL, HOP_SLEEP)
+		requests := make(chan *ICMPRequest)
+		m, ch := NewMTR(args[0], requests, TIMEOUT, INTERVAL, HOP_SLEEP)
+		go Listen(ProtocolICMP, "0.0.0.0", requests)
 		if jsonFmt {
 			go func(ch chan struct{}) {
 				for {
@@ -58,6 +60,9 @@ var RootCmd = &cobra.Command{
 		mu.Unlock()
 		return nil
 	},
+}
+
+func test() {
 }
 
 func render(m *MTR) {

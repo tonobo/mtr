@@ -17,12 +17,13 @@ type HopStatistic struct {
 	Sent       int
 	TTL        int
 	Target     string
-	Last       ICMPReturn
-	Best       ICMPReturn
-	Worst      ICMPReturn
+	Last       *ICMPReturn
+	Best       *ICMPReturn
+	Worst      *ICMPReturn
 	SumElapsed time.Duration
 	Lost       int
 	Packets    *ring.Ring
+	requests   chan *ICMPRequest
 }
 
 type packet struct {
@@ -31,13 +32,20 @@ type packet struct {
 }
 
 func (s *HopStatistic) Next() {
-	r, _ := Icmp("0.0.0.0", s.dest, s.TTL, s.pid, s.timeout)
+	s.pid = 1
+	s.Sent++
+	r, _ := Icmp(s.requests, &ICMPRequest{
+		DestAddr: s.dest,
+		TTL:      s.TTL,
+		ID:       s.pid,
+		Sequence: uint32(s.Sent),
+		Timeout:  s.timeout,
+	})
 	s.Packets = s.Packets.Prev()
 	s.Packets.Value = r
 	if s.Target == "" {
 		s.Target = r.Addr
 	}
-	s.Sent++
 	s.SumElapsed = r.Elapsed + s.SumElapsed
 	if !r.Success {
 		s.Lost++
@@ -98,7 +106,7 @@ func (h *HopStatistic) packets() []*packet {
 			i++
 			return
 		}
-		x := f.(ICMPReturn)
+		x := f.(*ICMPReturn)
 		if x.Success {
 			v[i] = &packet{
 				Success:      true,
@@ -121,7 +129,7 @@ func (h *HopStatistic) Render() {
 	h.Packets.Do(func(f interface{}) {
 		if f == nil {
 			packets[i] = ' '
-		} else if !f.(ICMPReturn).Success {
+		} else if !f.(*ICMPReturn).Success {
 			packets[i] = '?'
 		} else {
 			packets[i] = '.'
@@ -133,7 +141,7 @@ func (h *HopStatistic) Render() {
 		addr = h.Target
 	}
 	l := fmt.Sprintf("%d", RING_BUFFER_SIZE)
-	gm.Printf("%3d:|-- %-20s  %5.1f%%  %4d  %6.1f  %6.1f  %6.1f  %6.1f  %"+l+"s\n",
+	gm.Printf("%3d:|-- %-20s  %5.1f%%  %4d  %6.1f  %6.1f  %6.1f  %6.1f  %"+l+"s  %d\n",
 		h.TTL,
 		addr,
 		h.Loss(),
@@ -143,5 +151,6 @@ func (h *HopStatistic) Render() {
 		h.Best.Elapsed.Seconds()*1000,
 		h.Worst.Elapsed.Seconds()*1000,
 		packets,
+		h.pid,
 	)
 }
