@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	gm "github.com/buger/goterm"
@@ -70,28 +69,17 @@ func (m *MTR) Render(offset int) {
 func (m *MTR) ping(ch chan struct{}, count int) {
 	for i := 0; i < count; i++ {
 		time.Sleep(m.interval)
-		counter := int32(0)
-		len_statistic := int32(len(m.Statistic))
 		for i := 1; i <= len(m.Statistic); i++ {
 			hop := m.Statistic[i]
-			go func(ch chan struct{}, hop *HopStatistic) {
-				hop.Next()
-				ch <- struct{}{}
-				atomic.AddInt32(&counter, 1)
-			}(ch, hop)
-		}
-		for {
-			if atomic.LoadInt32(&counter) == len_statistic {
-				counter = int32(0)
-				ch <- struct{}{}
-				break
-			}
+			hop.Next(i)
+			ch <- struct{}{}
 		}
 	}
 }
 
 func (m *MTR) Run(ch chan struct{}, count int) {
 	m.discover(ch)
+	m.ping(ch, count)
 }
 
 func (m *MTR) discover(ch chan struct{}) {

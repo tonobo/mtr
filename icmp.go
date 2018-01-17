@@ -1,11 +1,9 @@
 package main
 
 import (
+	"encoding/binary"
 	"errors"
-	"fmt"
 	"net"
-	"strconv"
-	"strings"
 	"time"
 
 	"golang.org/x/net/icmp"
@@ -41,40 +39,39 @@ func (i *icmpret) Exceeded() bool {
 	return ok
 }
 
-func (i *icmpret) ID() (id int, seq int, ttl int) {
+type PacketMap map[uint16]*ICMPRequest
+
+var packets PacketMap
+
+func init() {
+	packets = PacketMap{}
+}
+
+func (i *icmpret) ID() uint16 {
 	switch x := i.Orig.Body.(type) {
 	case *icmp.Echo:
-		ary := strings.Split(string(x.Data[len(x.Data)-15:]), "-")
-		fmt.Println(ary)
-		if len(ary) != 3 {
-			return
-		}
-		ttl, _ = strconv.Atoi(ary[2])
-		return x.ID, x.Seq, ttl
+		return uint16(x.ID)
 	case *icmp.TimeExceeded:
-		ary := strings.Split(string(x.Data[len(x.Data)-15:]), "-")
-		fmt.Println(ary)
-		if len(ary) != 3 {
-			return
+		if len(x.Data) > 25 {
+			return binary.LittleEndian.Uint16(x.Data[25:])
 		}
-		id, _ = strconv.Atoi(ary[0])
-		seq, _ = strconv.Atoi(ary[1])
-		ttl, _ = strconv.Atoi(ary[2])
-		return
 	}
-	return
+	return 0
 }
 
 func (i *ICMPRequest) Send(c *net.IPConn) error {
 	cn := ipv4.NewPacketConn(c)
 	cn.SetTTL(i.TTL)
 	cn.SetWriteDeadline(time.Now().Add(i.Timeout))
+	buf := make([]byte, 2)
+	packets[uint16(i.ID)] = i
+	binary.LittleEndian.PutUint16(buf, uint16(i.ID))
 	wm := icmp.Message{
 		Type: ipv4.ICMPTypeEcho, Code: 0,
 		Body: &icmp.Echo{
 			ID:   i.ID,
 			Seq:  int(i.Sequence),
-			Data: []byte(fmt.Sprintf("%05d-%05d-%03d", i.ID, i.Sequence, i.TTL)),
+			Data: buf,
 		},
 	}
 	wb, err := wm.Marshal(nil)
@@ -90,14 +87,6 @@ func (i *ICMPRequest) Send(c *net.IPConn) error {
 const (
 	ProtocolICMP     = 1  // Internet Control Message
 	ProtocolIPv6ICMP = 58 // ICMP for IPv6
-)
-
-type TTLMap map[int]*ICMPRequest
-type SequenceMap map[int]TTLMap
-type RequestMap map[int]SequenceMap
-
-var (
-	Listen4Cache = RequestMap{}
 )
 
 func Listen(protocol int, localAddr string, requests chan *ICMPRequest) {
@@ -121,26 +110,16 @@ func Listen(protocol int, localAddr string, requests chan *ICMPRequest) {
 	for {
 		select {
 		case m := <-requests:
-			if Listen4Cache[m.ID] == nil {
-				Listen4Cache[m.ID] = SequenceMap{}
-			}
-			if Listen4Cache[m.ID][int(m.Sequence)] == nil {
-				Listen4Cache[m.ID][int(m.Sequence)] = TTLMap{}
-			}
-			Listen4Cache[m.ID][int(m.Sequence)][m.TTL] = m
 			m.Send(conn)
 		case r := <-results:
-			id, seq, ttl := r.ID()
-			if sc := Listen4Cache[id]; sc != nil {
-				if tm := sc[seq]; tm != nil {
-					if req := tm[ttl]; req != nil {
-						req.ReturnChannel <- &ICMPReturn{
-							Success: true,
-							Addr:    r.Addr,
-							Elapsed: r.ReceivedAt.Sub(req.startTime),
-						}
-					}
+			req, ok := packets[uint16(r.ID())]
+			if ok {
+				req.ReturnChannel <- &ICMPReturn{
+					Success: true,
+					Addr:    r.Addr,
+					Elapsed: r.ReceivedAt.Sub(req.startTime),
 				}
+
 			}
 		}
 	}
@@ -153,10 +132,8 @@ func Icmp(requests chan *ICMPRequest, x *ICMPRequest) (hop *ICMPReturn, err erro
 	requests <- x
 	select {
 	case r := <-x.ReturnChannel:
-		fmt.Printf("%#v -> %#v\n", x, r)
 		return r, nil
 	case <-time.After(x.Timeout):
-		fmt.Printf("LOST: %#v\n", x)
 		err = errors.New("request timed out.")
 	}
 	return

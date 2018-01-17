@@ -31,13 +31,12 @@ type packet struct {
 	ResponseTime float64 `json:"respond_ms"`
 }
 
-func (s *HopStatistic) Next() {
-	s.pid = 1
+func (s *HopStatistic) Next(id int) {
 	s.Sent++
 	r, _ := Icmp(s.requests, &ICMPRequest{
 		DestAddr: s.dest,
 		TTL:      s.TTL,
-		ID:       s.pid,
+		ID:       id,
 		Sequence: uint32(s.Sent),
 		Timeout:  s.timeout,
 	})
@@ -141,7 +140,7 @@ func (h *HopStatistic) Render() {
 		addr = h.Target
 	}
 	l := fmt.Sprintf("%d", RING_BUFFER_SIZE)
-	gm.Printf("%3d:|-- %-20s  %5.1f%%  %4d  %6.1f  %6.1f  %6.1f  %6.1f  %"+l+"s  %d\n",
+	gm.Printf("%3d:|-- %-20s  %5.1f%%  %4d  %6.1f  %6.1f  %6.1f  %6.1f  %"+l+"s\n",
 		h.TTL,
 		addr,
 		h.Loss(),
@@ -151,6 +150,5 @@ func (h *HopStatistic) Render() {
 		h.Best.Elapsed.Seconds()*1000,
 		h.Worst.Elapsed.Seconds()*1000,
 		packets,
-		h.pid,
 	)
 }
