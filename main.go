@@ -1,5 +1,7 @@
 package main
 
+import "github.com/meyskens/mtr/cli"
+
 func main() {
-	RootCmd.Execute()
+	cli.RootCmd.Execute()
 }

@@ -1,4 +1,4 @@
-package main
+package hop
 
 import (
 	"container/ring"
@@ -8,21 +8,23 @@ import (
 	"time"
 
 	gm "github.com/buger/goterm"
+	"github.com/meyskens/mtr/imcp"
 )
 
 type HopStatistic struct {
-	dest       *net.IPAddr
-	timeout    time.Duration
-	pid        int
-	Sent       int
-	TTL        int
-	Target     string
-	Last       ICMPReturn
-	Best       ICMPReturn
-	Worst      ICMPReturn
-	SumElapsed time.Duration
-	Lost       int
-	Packets    *ring.Ring
+	Dest           *net.IPAddr
+	Timeout        time.Duration
+	PID            int
+	Sent           int
+	TTL            int
+	Target         string
+	Last           imcp.ICMPReturn
+	Best           imcp.ICMPReturn
+	Worst          imcp.ICMPReturn
+	SumElapsed     time.Duration
+	Lost           int
+	Packets        *ring.Ring
+	RingBufferSize int
 }
 
 type packet struct {
@@ -31,7 +33,7 @@ type packet struct {
 }
 
 func (s *HopStatistic) Next() {
-	r, _ := Icmp("0.0.0.0", s.dest, s.TTL, s.pid, s.timeout)
+	r, _ := imcp.SendIMCP("0.0.0.0", s.Dest, s.TTL, s.PID, s.Timeout)
 	s.Packets = s.Packets.Prev()
 	s.Packets.Value = r
 	if s.Target == "" {
@@ -68,7 +70,7 @@ func (h *HopStatistic) MarshalJSON() ([]byte, error) {
 		TTL:              h.TTL,
 		Loss:             h.Loss(),
 		Target:           h.Target,
-		PacketBufferSize: RING_BUFFER_SIZE,
+		PacketBufferSize: h.RingBufferSize,
 		Last:             h.Last.Elapsed.Seconds() * 1000,
 		Best:             h.Best.Elapsed.Seconds() * 1000,
 		Worst:            h.Worst.Elapsed.Seconds() * 1000,
@@ -90,7 +92,7 @@ func (h *HopStatistic) Loss() float64 {
 }
 
 func (h *HopStatistic) packets() []*packet {
-	v := make([]*packet, RING_BUFFER_SIZE)
+	v := make([]*packet, h.RingBufferSize)
 	i := 0
 	h.Packets.Do(func(f interface{}) {
 		if f == nil {
@@ -98,7 +100,7 @@ func (h *HopStatistic) packets() []*packet {
 			i++
 			return
 		}
-		x := f.(ICMPReturn)
+		x := f.(imcp.ICMPReturn)
 		if x.Success {
 			v[i] = &packet{
 				Success:      true,
@@ -116,12 +118,12 @@ func (h *HopStatistic) packets() []*packet {
 }
 
 func (h *HopStatistic) Render() {
-	packets := make([]byte, RING_BUFFER_SIZE)
-	i := RING_BUFFER_SIZE - 1
+	packets := make([]byte, h.RingBufferSize)
+	i := h.RingBufferSize - 1
 	h.Packets.Do(func(f interface{}) {
 		if f == nil {
 			packets[i] = ' '
-		} else if !f.(ICMPReturn).Success {
+		} else if !f.(imcp.ICMPReturn).Success {
 			packets[i] = '?'
 		} else {
 			packets[i] = '.'
@@ -132,7 +134,7 @@ func (h *HopStatistic) Render() {
 	if h.Target != "" {
 		addr = h.Target
 	}
-	l := fmt.Sprintf("%d", RING_BUFFER_SIZE)
+	l := fmt.Sprintf("%d", h.RingBufferSize)
 	gm.Printf("%3d:|-- %-20s  %5.1f%%  %4d  %6.1f  %6.1f  %6.1f  %6.1f  %"+l+"s\n",
 		h.TTL,
 		addr,
