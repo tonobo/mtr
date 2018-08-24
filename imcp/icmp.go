@@ -26,7 +26,11 @@ func SendDiscoverIMCP(localAddr string, dst net.Addr, ttl, pid int, timeout time
 		return hop, err
 	}
 	defer c.Close()
-	c.IPv4PacketConn().SetTTL(ttl)
+
+	err = c.IPv4PacketConn().SetTTL(ttl)
+	if err != nil {
+		return hop, err
+	}
 	err = c.SetDeadline(time.Now().Add(timeout))
 	if err != nil {
 		return hop, err
@@ -69,7 +73,10 @@ func SendIMCP(localAddr string, dst net.Addr, target string, ttl, pid int, timeo
 		return hop, err
 	}
 	defer c.Close()
-	c.IPv4PacketConn().SetTTL(ttl)
+	err = c.IPv4PacketConn().SetTTL(ttl)
+	if err != nil {
+		return hop, err
+	}
 	err = c.SetDeadline(time.Now().Add(timeout))
 	if err != nil {
 		return hop, err
