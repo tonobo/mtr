@@ -17,7 +17,7 @@ type ICMPReturn struct {
 	Elapsed time.Duration
 }
 
-// SendIMCP sends a IMCP to a given destination but does allow an IMCP timeout
+// SendDiscoverIMCP sends a IMCP to a given destination with a TTL to discover hops
 func SendDiscoverIMCP(localAddr string, dst net.Addr, ttl, pid int, timeout time.Duration, seq int) (hop ICMPReturn, err error) {
 	hop.Success = false
 	start := time.Now()
@@ -64,7 +64,7 @@ func SendDiscoverIMCP(localAddr string, dst net.Addr, ttl, pid int, timeout time
 	return hop, err
 }
 
-// SendIMCP sends a IMCP to a given destination
+// SendIMCP sends a IMCP to a given destination which requires a  reply from that specific destination
 func SendIMCP(localAddr string, dst net.Addr, target string, ttl, pid int, timeout time.Duration, seq int) (hop ICMPReturn, err error) {
 	hop.Success = false
 	start := time.Now()
