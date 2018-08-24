@@ -18,6 +18,7 @@ type HopStatistic struct {
 	Sent           int
 	TTL            int
 	Target         string
+	TargetIP       *net.IPAddr
 	Last           imcp.ICMPReturn
 	Best           imcp.ICMPReturn
 	Worst          imcp.ICMPReturn
@@ -25,6 +26,7 @@ type HopStatistic struct {
 	Lost           int
 	Packets        *ring.Ring
 	RingBufferSize int
+	pingSeq        int
 }
 
 type packet struct {
@@ -33,12 +35,21 @@ type packet struct {
 }
 
 func (s *HopStatistic) Next() {
-	r, _ := imcp.SendIMCP("0.0.0.0", s.Dest, s.TTL, s.PID, s.Timeout)
+	if s.Target == "" {
+		return
+	}
+	if s.TargetIP == nil {
+		addr, err := net.ResolveIPAddr("ip4", s.Target)
+		if err != nil {
+			return
+		}
+		s.TargetIP = addr
+	}
+	s.pingSeq++
+	r, _ := imcp.SendIMCP("0.0.0.0", s.TargetIP, s.TTL, s.PID, s.Timeout, s.pingSeq)
 	s.Packets = s.Packets.Prev()
 	s.Packets.Value = r
-	if s.Target == "" {
-		s.Target = r.Addr
-	}
+
 	s.Sent++
 	s.SumElapsed = r.Elapsed + s.SumElapsed
 	if !r.Success {
