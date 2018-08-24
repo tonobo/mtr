@@ -18,6 +18,7 @@ var (
 	INTERVAL         = 100 * time.Millisecond
 	HOP_SLEEP        = time.Nanosecond
 	MAX_HOPS         = 64
+	MAX_UNKNOWN_HOPS = 10
 	RING_BUFFER_SIZE = 50
 	jsonFmt          = false
 )
@@ -29,7 +30,7 @@ var RootCmd = &cobra.Command{
 		if len(args) != 1 {
 			return errors.New("No target provided")
 		}
-		m, ch := mtr.NewMTR(args[0], TIMEOUT, INTERVAL, HOP_SLEEP, MAX_HOPS, RING_BUFFER_SIZE)
+		m, ch := mtr.NewMTR(args[0], TIMEOUT, INTERVAL, HOP_SLEEP, MAX_HOPS, MAX_UNKNOWN_HOPS, RING_BUFFER_SIZE)
 		if jsonFmt {
 			go func(ch chan struct{}) {
 				for {
