@@ -1,6 +1,7 @@
 package imcp
 
 import (
+	"fmt"
 	"net"
 	"time"
 
@@ -65,11 +66,12 @@ func SendIMCP(localAddr string, dst net.Addr, ttl, pid int, timeout time.Duratio
 	defer c.Close()
 	c.IPv4PacketConn().SetTTL(ttl)
 	c.SetDeadline(time.Now().Add(timeout))
+	body := fmt.Sprintf("ping%d", seq)
 	wm := icmp.Message{
 		Type: ipv4.ICMPTypeEcho, Code: 0,
 		Body: &icmp.Echo{
 			ID: pid, Seq: 0,
-			Data: []byte("hello"),
+			Data: []byte(body),
 		},
 	}
 	wb, err := wm.Marshal(nil)
@@ -81,7 +83,7 @@ func SendIMCP(localAddr string, dst net.Addr, ttl, pid int, timeout time.Duratio
 		return hop, err
 	}
 
-	_, err = listenForSpecific(time.Now().Add(timeout), dst.String())
+	_, err = listenForSpecific(time.Now().Add(timeout), dst.String(), body)
 	if err != nil {
 		return hop, err
 	}
@@ -94,7 +96,7 @@ func SendIMCP(localAddr string, dst net.Addr, ttl, pid int, timeout time.Duratio
 }
 
 // listenForSpecific listens for a reply from a specific destination and returns the body if returned
-func listenForSpecific(deadline time.Time, neededPeer string) (string, error) {
+func listenForSpecific(deadline time.Time, neededPeer, neededBody string) (string, error) {
 	conn, err := icmp.ListenPacket("ip4:icmp", "0.0.0.0")
 	if err != nil {
 		return "", err
@@ -128,7 +130,10 @@ func listenForSpecific(deadline time.Time, neededPeer string) (string, error) {
 
 		if x.Type.(ipv4.ICMPType).String() == "echo reply" {
 			b, _ := x.Body.Marshal(1)
-			return string(b[:2]), nil
+			if string(b[4:]) != neededBody {
+				continue
+			}
+			return string(b[4:]), nil
 		}
 
 		panic(x.Type.(ipv4.ICMPType).String())
