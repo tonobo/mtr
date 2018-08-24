@@ -70,7 +70,6 @@ func (m *MTR) Render(offset int) {
 		m.Statistic[i].Render()
 		m.mutex.RUnlock()
 	}
-	return
 }
 
 func (m *MTR) ping(ch chan struct{}, count int) {
