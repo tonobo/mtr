@@ -51,11 +51,14 @@ func (s *HopStatistic) Next() {
 	s.Packets.Value = r
 
 	s.Sent++
-	s.SumElapsed = r.Elapsed + s.SumElapsed
+
 	if !r.Success {
-		s.Lost++
+		return // do not count failed into statistics
 	}
+
+	s.SumElapsed = r.Elapsed + s.SumElapsed
 	s.Last = r
+
 	if s.Best.Elapsed > r.Elapsed {
 		s.Best = r
 	}
