@@ -1,7 +1,14 @@
 package main
 
-import "github.com/tonobo/mtr/cli"
+import (
+	"fmt"
+
+	"github.com/tonobo/mtr/cli"
+)
 
 func main() {
-	cli.RootCmd.Execute()
+	err := cli.RootCmd.Execute()
+	if err != nil {
+		fmt.Println(err)
+	}
 }
