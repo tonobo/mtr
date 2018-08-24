@@ -27,7 +27,11 @@ func SendDiscoverIMCP(localAddr string, dst net.Addr, ttl, pid int, timeout time
 	}
 	defer c.Close()
 	c.IPv4PacketConn().SetTTL(ttl)
-	c.SetDeadline(time.Now().Add(timeout))
+	err = c.SetDeadline(time.Now().Add(timeout))
+	if err != nil {
+		return hop, err
+	}
+
 	wm := icmp.Message{
 		Type: ipv4.ICMPTypeEcho, Code: 0,
 		Body: &icmp.Echo{
@@ -65,7 +69,11 @@ func SendIMCP(localAddr string, dst net.Addr, pid int, timeout time.Duration, se
 		return hop, err
 	}
 	defer c.Close()
-	c.SetDeadline(time.Now().Add(timeout))
+	err = c.SetDeadline(time.Now().Add(timeout))
+	if err != nil {
+		return hop, err
+	}
+
 	body := fmt.Sprintf("ping%d", seq)
 	wm := icmp.Message{
 		Type: ipv4.ICMPTypeEcho, Code: 0,
@@ -83,7 +91,7 @@ func SendIMCP(localAddr string, dst net.Addr, pid int, timeout time.Duration, se
 		return hop, err
 	}
 
-	_, err = listenForSpecific(time.Now().Add(timeout), dst.String(), body)
+	_, err = listenForSpecific(c, time.Now().Add(timeout), dst.String(), body)
 	if err != nil {
 		return hop, err
 	}
@@ -95,14 +103,8 @@ func SendIMCP(localAddr string, dst net.Addr, pid int, timeout time.Duration, se
 	return hop, err
 }
 
-// listenForSpecific listens for a reply from a specific destination and returns the body if returned
-func listenForSpecific(deadline time.Time, neededPeer, neededBody string) (string, error) {
-	conn, err := icmp.ListenPacket("ip4:icmp", "0.0.0.0")
-	if err != nil {
-		return "", err
-	}
-	conn.SetDeadline(deadline)
-	defer conn.Close()
+// listenForSpecific listens for a reply from a specific destination with a specifi body and returns the body if returned
+func listenForSpecific(conn *icmp.PacketConn, deadline time.Time, neededPeer, neededBody string) (string, error) {
 	for {
 		bytes := make([]byte, 1500)
 		n, peer, err := conn.ReadFrom(bytes)
