@@ -1,7 +1,7 @@
 package imcp
 
 import (
-	"errors"
+	"bytes"
 	"fmt"
 	"net"
 	"time"
@@ -35,7 +35,7 @@ func SendDiscoverIMCP(localAddr string, dst net.Addr, ttl, pid int, timeout time
 	wm := icmp.Message{
 		Type: ipv4.ICMPTypeEcho, Code: 0,
 		Body: &icmp.Echo{
-			ID: pid, Seq: 1,
+			ID: pid, Seq: seq,
 			Data: []byte(""),
 		},
 	}
@@ -61,7 +61,7 @@ func SendDiscoverIMCP(localAddr string, dst net.Addr, ttl, pid int, timeout time
 }
 
 // SendIMCP sends a IMCP to a given destination
-func SendIMCP(localAddr string, dst net.Addr, pid int, timeout time.Duration, seq int) (hop ICMPReturn, err error) {
+func SendIMCP(localAddr string, dst net.Addr, target string, ttl, pid int, timeout time.Duration, seq int) (hop ICMPReturn, err error) {
 	hop.Success = false
 	start := time.Now()
 	c, err := icmp.ListenPacket("ip4:icmp", localAddr)
@@ -69,6 +69,7 @@ func SendIMCP(localAddr string, dst net.Addr, pid int, timeout time.Duration, se
 		return hop, err
 	}
 	defer c.Close()
+	c.IPv4PacketConn().SetTTL(ttl)
 	err = c.SetDeadline(time.Now().Add(timeout))
 	if err != nil {
 		return hop, err
@@ -78,7 +79,7 @@ func SendIMCP(localAddr string, dst net.Addr, pid int, timeout time.Duration, se
 	wm := icmp.Message{
 		Type: ipv4.ICMPTypeEcho, Code: 0,
 		Body: &icmp.Echo{
-			ID: pid, Seq: 0,
+			ID: pid, Seq: seq,
 			Data: []byte(body),
 		},
 	}
@@ -91,26 +92,26 @@ func SendIMCP(localAddr string, dst net.Addr, pid int, timeout time.Duration, se
 		return hop, err
 	}
 
-	_, err = listenForSpecific(c, time.Now().Add(timeout), dst.String(), body)
+	peer, _, err := listenForSpecific(c, time.Now().Add(timeout), target, body, seq, wb)
 	if err != nil {
 		return hop, err
 	}
 
 	elapsed := time.Since(start)
 	hop.Elapsed = elapsed
-	hop.Addr = dst.String()
+	hop.Addr = peer
 	hop.Success = true
 	return hop, err
 }
 
 // listenForSpecific listens for a reply from a specific destination with a specifi body and returns the body if returned
-func listenForSpecific(conn *icmp.PacketConn, deadline time.Time, neededPeer, neededBody string) (string, error) {
+func listenForSpecific(conn *icmp.PacketConn, deadline time.Time, neededPeer, neededBody string, needSeq int, sent []byte) (string, string, error) {
 	for {
-		bytes := make([]byte, 1500)
-		n, peer, err := conn.ReadFrom(bytes)
+		b := make([]byte, 1500)
+		n, peer, err := conn.ReadFrom(b)
 		if err != nil {
 			if neterr, ok := err.(*net.OpError); ok {
-				return "", neterr
+				return "", "", neterr
 			}
 		}
 		if n == 0 {
@@ -121,13 +122,22 @@ func listenForSpecific(conn *icmp.PacketConn, deadline time.Time, neededPeer, ne
 			continue
 		}
 
-		x, err := icmp.ParseMessage(1, bytes[:n])
+		x, err := icmp.ParseMessage(1, b[:n])
 		if err != nil {
 			continue
 		}
 
 		if x.Type.(ipv4.ICMPType).String() == "time exceeded" {
-			return "", errors.New("time exceeded")
+			body := x.Body.(*icmp.TimeExceeded).Data
+
+			index := bytes.Index(body, sent[:4])
+			if index > 0 {
+				x, _ := icmp.ParseMessage(1, body[index:])
+				seq := x.Body.(*icmp.Echo).Seq
+				if seq == needSeq {
+					return peer.String(), "", nil
+				}
+			}
 		}
 
 		if x.Type.(ipv4.ICMPType).String() == "echo reply" {
@@ -135,9 +145,7 @@ func listenForSpecific(conn *icmp.PacketConn, deadline time.Time, neededPeer, ne
 			if string(b[4:]) != neededBody {
 				continue
 			}
-			return string(b[4:]), nil
+			return peer.String(), string(b[4:]), nil
 		}
-
-		panic(x.Type.(ipv4.ICMPType).String())
 	}
 }
