@@ -22,9 +22,10 @@ type MTR struct {
 	Statistic      map[int]*hop.HopStatistic `json:"statistic"`
 	ringBufferSize int
 	maxHops        int
+	maxUnknownHops int
 }
 
-func NewMTR(addr string, timeout time.Duration, interval time.Duration, hopsleep time.Duration, maxHops, ringBufferSize int) (*MTR, chan struct{}) {
+func NewMTR(addr string, timeout time.Duration, interval time.Duration, hopsleep time.Duration, maxHops, maxUnknownHops, ringBufferSize int) (*MTR, chan struct{}) {
 	return &MTR{
 		interval:       interval,
 		timeout:        timeout,
@@ -34,6 +35,7 @@ func NewMTR(addr string, timeout time.Duration, interval time.Duration, hopsleep
 		Statistic:      map[int]*hop.HopStatistic{},
 		maxHops:        maxHops,
 		ringBufferSize: ringBufferSize,
+		maxUnknownHops: maxUnknownHops,
 	}, make(chan struct{})
 }
 
@@ -68,7 +70,6 @@ func (m *MTR) Render(offset int) {
 		m.Statistic[i].Render()
 		m.mutex.RUnlock()
 	}
-	return
 }
 
 func (m *MTR) ping(ch chan struct{}, count int) {
@@ -89,27 +90,15 @@ func (m *MTR) Run(ch chan struct{}, count int) {
 	m.ping(ch, count-1)
 }
 
+// discover discovers all hops on the route
 func (m *MTR) discover(ch chan struct{}) {
 	ipAddr := net.IPAddr{IP: net.ParseIP(m.Address)}
 	pid := os.Getpid() & 0xffff
-	ttlDoubleBump := false
+	unknownHopsCount := 0
 	for ttl := 1; ttl < m.maxHops; ttl++ {
 		time.Sleep(m.hopsleep)
 		hopReturn, err := imcp.SendIMCP("0.0.0.0", &ipAddr, ttl, pid, m.timeout)
-		if err != nil || !hopReturn.Success {
-			if ttlDoubleBump {
-				break
-			}
-			m.mutex.Lock()
-			s := m.registerStatistic(ttl, hopReturn)
-			s.Dest = &ipAddr
-			s.PID = pid
-			m.mutex.Unlock()
-			ch <- struct{}{}
-			ttlDoubleBump = true
-			continue
-		}
-		ttlDoubleBump = false
+
 		m.mutex.Lock()
 		s := m.registerStatistic(ttl, hopReturn)
 		s.Dest = &ipAddr
@@ -119,5 +108,13 @@ func (m *MTR) discover(ch chan struct{}) {
 		if hopReturn.Addr == m.Address {
 			break
 		}
+		if err != nil || !hopReturn.Success {
+			unknownHopsCount++
+			if unknownHopsCount > m.maxUnknownHops {
+				break
+			}
+			continue
+		}
+		unknownHopsCount = 0
 	}
 }

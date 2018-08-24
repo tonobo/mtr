@@ -18,6 +18,7 @@ var (
 	INTERVAL         = 100 * time.Millisecond
 	HOP_SLEEP        = time.Nanosecond
 	MAX_HOPS         = 64
+	MAX_UNKNOWN_HOPS = 10
 	RING_BUFFER_SIZE = 50
 	jsonFmt          = false
 )
@@ -29,7 +30,7 @@ var RootCmd = &cobra.Command{
 		if len(args) != 1 {
 			return errors.New("No target provided")
 		}
-		m, ch := mtr.NewMTR(args[0], TIMEOUT, INTERVAL, HOP_SLEEP, MAX_HOPS, RING_BUFFER_SIZE)
+		m, ch := mtr.NewMTR(args[0], TIMEOUT, INTERVAL, HOP_SLEEP, MAX_HOPS, MAX_UNKNOWN_HOPS, RING_BUFFER_SIZE)
 		if jsonFmt {
 			go func(ch chan struct{}) {
 				for {
@@ -73,6 +74,7 @@ func init() {
 	RootCmd.Flags().DurationVarP(&INTERVAL, "interval", "i", INTERVAL, "Wait time between icmp packets before sending new one")
 	RootCmd.Flags().DurationVar(&HOP_SLEEP, "hop-sleep", HOP_SLEEP, "Wait time between pinging next hop")
 	RootCmd.Flags().IntVar(&MAX_HOPS, "max-hops", MAX_HOPS, "Maximal TTL count")
+	RootCmd.Flags().IntVar(&MAX_UNKNOWN_HOPS, "max-unknown-hops", MAX_UNKNOWN_HOPS, "Maximal hops that do not reply before stopping to look")
 	RootCmd.Flags().IntVar(&RING_BUFFER_SIZE, "buffer-size", RING_BUFFER_SIZE, "Cached packet buffer size")
 	RootCmd.Flags().BoolVar(&jsonFmt, "json", jsonFmt, "Print json results")
 }
