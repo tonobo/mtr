@@ -46,7 +46,7 @@ func (s *HopStatistic) Next() {
 		s.TargetIP = addr
 	}
 	s.pingSeq++
-	r, _ := imcp.SendIMCP("0.0.0.0", s.TargetIP, s.TTL, s.PID, s.Timeout, s.pingSeq)
+	r, _ := imcp.SendIMCP("0.0.0.0", s.TargetIP, s.PID, s.Timeout, s.pingSeq)
 	s.Packets = s.Packets.Prev()
 	s.Packets.Value = r
 

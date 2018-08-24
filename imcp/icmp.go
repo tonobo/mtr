@@ -1,6 +1,7 @@
 package imcp
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"time"
@@ -56,7 +57,7 @@ func SendDiscoverIMCP(localAddr string, dst net.Addr, ttl, pid int, timeout time
 }
 
 // SendIMCP sends a IMCP to a given destination
-func SendIMCP(localAddr string, dst net.Addr, ttl, pid int, timeout time.Duration, seq int) (hop ICMPReturn, err error) {
+func SendIMCP(localAddr string, dst net.Addr, pid int, timeout time.Duration, seq int) (hop ICMPReturn, err error) {
 	hop.Success = false
 	start := time.Now()
 	c, err := icmp.ListenPacket("ip4:icmp", localAddr)
@@ -64,7 +65,6 @@ func SendIMCP(localAddr string, dst net.Addr, ttl, pid int, timeout time.Duratio
 		return hop, err
 	}
 	defer c.Close()
-	c.IPv4PacketConn().SetTTL(ttl)
 	c.SetDeadline(time.Now().Add(timeout))
 	body := fmt.Sprintf("ping%d", seq)
 	wm := icmp.Message{
@@ -125,7 +125,7 @@ func listenForSpecific(deadline time.Time, neededPeer, neededBody string) (strin
 		}
 
 		if x.Type.(ipv4.ICMPType).String() == "time exceeded" {
-			return "", nil //TODO: add a check for sequences here
+			return "", errors.New("time exceeded")
 		}
 
 		if x.Type.(ipv4.ICMPType).String() == "echo reply" {
