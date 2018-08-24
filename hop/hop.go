@@ -8,7 +8,7 @@ import (
 	"time"
 
 	gm "github.com/buger/goterm"
-	"github.com/meyskens/mtr/imcp"
+	"github.com/tonobo/mtr/imcp"
 )
 
 type HopStatistic struct {

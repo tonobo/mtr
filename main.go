@@ -1,6 +1,6 @@
 package main
 
-import "github.com/meyskens/mtr/cli"
+import "github.com/tonobo/mtr/cli"
 
 func main() {
 	cli.RootCmd.Execute()
