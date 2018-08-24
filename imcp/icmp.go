@@ -1,4 +1,4 @@
-package main
+package imcp
 
 import (
 	"net"
@@ -8,13 +8,15 @@ import (
 	"golang.org/x/net/ipv4"
 )
 
+// ICMPReturn contains the info for a returned IMCP
 type ICMPReturn struct {
 	Success bool
 	Addr    string
 	Elapsed time.Duration
 }
 
-func Icmp(localAddr string, dst net.Addr, ttl, pid int, timeout time.Duration) (hop ICMPReturn, err error) {
+// SendIMCP sends a IMCP to a given destination
+func SendIMCP(localAddr string, dst net.Addr, ttl, pid int, timeout time.Duration) (hop ICMPReturn, err error) {
 	hop.Success = false
 	start := time.Now()
 	c, err := icmp.ListenPacket("ip4:icmp", localAddr)

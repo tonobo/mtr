@@ -1,4 +1,4 @@
-package main
+package cli
 
 import (
 	"errors"
@@ -9,6 +9,7 @@ import (
 	tm "github.com/buger/goterm"
 	pj "github.com/hokaccha/go-prettyjson"
 	"github.com/spf13/cobra"
+	"github.com/tonobo/mtr/mtr"
 )
 
 var (
@@ -28,7 +29,7 @@ var RootCmd = &cobra.Command{
 		if len(args) != 1 {
 			return errors.New("No target provided")
 		}
-		m, ch := NewMTR(args[0], TIMEOUT, INTERVAL, HOP_SLEEP)
+		m, ch := mtr.NewMTR(args[0], TIMEOUT, INTERVAL, HOP_SLEEP, MAX_HOPS, RING_BUFFER_SIZE)
 		if jsonFmt {
 			go func(ch chan struct{}) {
 				for {
@@ -60,7 +61,7 @@ var RootCmd = &cobra.Command{
 	},
 }
 
-func render(m *MTR) {
+func render(m *mtr.MTR) {
 	tm.MoveCursor(1, 1)
 	m.Render(1)
 	tm.Flush() // Call it every time at the end of rendering
