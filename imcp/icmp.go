@@ -125,7 +125,7 @@ func listenForSpecific(deadline time.Time, neededPeer, neededBody string) (strin
 		}
 
 		if x.Type.(ipv4.ICMPType).String() == "time exceeded" {
-			return "", nil
+			return "", nil //TODO: add a check for sequences here
 		}
 
 		if x.Type.(ipv4.ICMPType).String() == "echo reply" {
