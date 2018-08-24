@@ -133,9 +133,14 @@ func listenForSpecific(conn *icmp.PacketConn, deadline time.Time, neededPeer, ne
 			index := bytes.Index(body, sent[:4])
 			if index > 0 {
 				x, _ := icmp.ParseMessage(1, body[index:])
-				seq := x.Body.(*icmp.Echo).Seq
-				if seq == needSeq {
-					return peer.String(), "", nil
+				switch x.Body.(type) {
+				case *icmp.Echo:
+					seq := x.Body.(*icmp.Echo).Seq
+					if seq == needSeq {
+						return peer.String(), "", nil
+					}
+				default:
+					// ignore
 				}
 			}
 		}
