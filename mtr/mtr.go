@@ -97,7 +97,7 @@ func (m *MTR) discover(ch chan struct{}) {
 	unknownHopsCount := 0
 	for ttl := 1; ttl < m.maxHops; ttl++ {
 		time.Sleep(m.hopsleep)
-		hopReturn, err := imcp.SendIMCP("0.0.0.0", &ipAddr, ttl, pid, m.timeout)
+		hopReturn, err := imcp.SendDiscoverIMCP("0.0.0.0", &ipAddr, ttl, pid, m.timeout, 1)
 
 		m.mutex.Lock()
 		s := m.registerStatistic(ttl, hopReturn)

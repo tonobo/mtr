@@ -25,6 +25,7 @@ type HopStatistic struct {
 	Lost           int
 	Packets        *ring.Ring
 	RingBufferSize int
+	pingSeq        int
 }
 
 type packet struct {
@@ -33,18 +34,24 @@ type packet struct {
 }
 
 func (s *HopStatistic) Next() {
-	r, _ := imcp.SendIMCP("0.0.0.0", s.Dest, s.TTL, s.PID, s.Timeout)
+	if s.Target == "" {
+		return
+	}
+	s.pingSeq++
+	r, _ := imcp.SendIMCP("0.0.0.0", s.Dest, s.Target, s.TTL, s.PID, s.Timeout, s.pingSeq)
 	s.Packets = s.Packets.Prev()
 	s.Packets.Value = r
-	if s.Target == "" {
-		s.Target = r.Addr
-	}
+
 	s.Sent++
-	s.SumElapsed = r.Elapsed + s.SumElapsed
+
+	s.Last = r
 	if !r.Success {
 		s.Lost++
+		return // do not count failed into statistics
 	}
-	s.Last = r
+
+	s.SumElapsed = r.Elapsed + s.SumElapsed
+
 	if s.Best.Elapsed > r.Elapsed {
 		s.Best = r
 	}
