@@ -21,6 +21,7 @@ var (
 	MAX_UNKNOWN_HOPS = 10
 	RING_BUFFER_SIZE = 50
 	jsonFmt          = false
+	srcAddr          = "0.0.0.0"
 )
 
 // rootCmd represents the root command
@@ -30,7 +31,7 @@ var RootCmd = &cobra.Command{
 		if len(args) != 1 {
 			return errors.New("No target provided")
 		}
-		m, ch := mtr.NewMTR(args[0], TIMEOUT, INTERVAL, HOP_SLEEP, MAX_HOPS, MAX_UNKNOWN_HOPS, RING_BUFFER_SIZE)
+		m, ch := mtr.NewMTR(args[0], srcAddr, TIMEOUT, INTERVAL, HOP_SLEEP, MAX_HOPS, MAX_UNKNOWN_HOPS, RING_BUFFER_SIZE)
 		if jsonFmt {
 			go func(ch chan struct{}) {
 				for {
@@ -77,4 +78,5 @@ func init() {
 	RootCmd.Flags().IntVar(&MAX_UNKNOWN_HOPS, "max-unknown-hops", MAX_UNKNOWN_HOPS, "Maximal hops that do not reply before stopping to look")
 	RootCmd.Flags().IntVar(&RING_BUFFER_SIZE, "buffer-size", RING_BUFFER_SIZE, "Cached packet buffer size")
 	RootCmd.Flags().BoolVar(&jsonFmt, "json", jsonFmt, "Print json results")
+	RootCmd.Flags().StringVar(&srcAddr, "address", srcAddr, "The address to be bound the outgoing socket")
 }
