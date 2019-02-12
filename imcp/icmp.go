@@ -3,6 +3,7 @@ package imcp
 import (
 	"bytes"
 	"fmt"
+	"log"
 	"net"
 	"time"
 
@@ -23,6 +24,7 @@ func SendDiscoverIMCP(localAddr string, dst net.Addr, ttl, pid int, timeout time
 	start := time.Now()
 	c, err := icmp.ListenPacket("ip4:icmp", localAddr)
 	if err != nil {
+		log.Panicf("Failed to listen to address %v. Msg: %v.", localAddr, err.Error())
 		return hop, err
 	}
 	defer c.Close()
@@ -52,7 +54,8 @@ func SendDiscoverIMCP(localAddr string, dst net.Addr, ttl, pid int, timeout time
 		return hop, err
 	}
 
-	rb := make([]byte, 1500)
+	// rb := make([]byte, 1500)
+	rb := []byte{}
 	_, peer, err := c.ReadFrom(rb)
 	if err != nil {
 		return hop, err
@@ -70,6 +73,7 @@ func SendIMCP(localAddr string, dst net.Addr, target string, ttl, pid int, timeo
 	start := time.Now()
 	c, err := icmp.ListenPacket("ip4:icmp", localAddr)
 	if err != nil {
+		log.Panicf("Failed to listen to address %v. Msg: %v.", localAddr, err.Error())
 		return hop, err
 	}
 	defer c.Close()

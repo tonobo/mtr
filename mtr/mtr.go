@@ -14,6 +14,7 @@ import (
 )
 
 type MTR struct {
+	srcAddress     string `json:"source"`
 	mutex          *sync.RWMutex
 	timeout        time.Duration
 	interval       time.Duration
@@ -25,8 +26,9 @@ type MTR struct {
 	maxUnknownHops int
 }
 
-func NewMTR(addr string, timeout time.Duration, interval time.Duration, hopsleep time.Duration, maxHops, maxUnknownHops, ringBufferSize int) (*MTR, chan struct{}) {
+func NewMTR(addr, srcAddr string, timeout time.Duration, interval time.Duration, hopsleep time.Duration, maxHops, maxUnknownHops, ringBufferSize int) (*MTR, chan struct{}) {
 	return &MTR{
+		srcAddress:     srcAddr,
 		interval:       interval,
 		timeout:        timeout,
 		hopsleep:       hopsleep,
@@ -78,7 +80,7 @@ func (m *MTR) ping(ch chan struct{}, count int) {
 		for i := 1; i <= len(m.Statistic); i++ {
 			time.Sleep(m.hopsleep)
 			m.mutex.RLock()
-			m.Statistic[i].Next()
+			m.Statistic[i].Next(m.srcAddress)
 			m.mutex.RUnlock()
 			ch <- struct{}{}
 		}
@@ -97,7 +99,7 @@ func (m *MTR) discover(ch chan struct{}) {
 	unknownHopsCount := 0
 	for ttl := 1; ttl < m.maxHops; ttl++ {
 		time.Sleep(m.hopsleep)
-		hopReturn, err := imcp.SendDiscoverIMCP("0.0.0.0", &ipAddr, ttl, pid, m.timeout, 1)
+		hopReturn, err := imcp.SendDiscoverIMCP(m.srcAddress, &ipAddr, ttl, pid, m.timeout, 1)
 
 		m.mutex.Lock()
 		s := m.registerStatistic(ttl, hopReturn)
