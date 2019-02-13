@@ -8,7 +8,7 @@ import (
 	"time"
 
 	gm "github.com/buger/goterm"
-	"github.com/tonobo/mtr/imcp"
+	"github.com/tonobo/mtr/icmp"
 )
 
 type HopStatistic struct {
@@ -18,9 +18,9 @@ type HopStatistic struct {
 	Sent           int
 	TTL            int
 	Target         string
-	Last           imcp.ICMPReturn
-	Best           imcp.ICMPReturn
-	Worst          imcp.ICMPReturn
+	Last           icmp.ICMPReturn
+	Best           icmp.ICMPReturn
+	Worst          icmp.ICMPReturn
 	SumElapsed     time.Duration
 	Lost           int
 	Packets        *ring.Ring
@@ -38,7 +38,7 @@ func (s *HopStatistic) Next(srcAddr string) {
 		return
 	}
 	s.pingSeq++
-	r, _ := imcp.SendIMCP(srcAddr, s.Dest, s.Target, s.TTL, s.PID, s.Timeout, s.pingSeq)
+	r, _ := icmp.SendICMP(srcAddr, s.Dest, s.Target, s.TTL, s.PID, s.Timeout, s.pingSeq)
 	s.Packets = s.Packets.Prev()
 	s.Packets.Value = r
 
@@ -107,7 +107,7 @@ func (h *HopStatistic) packets() []*packet {
 			i++
 			return
 		}
-		x := f.(imcp.ICMPReturn)
+		x := f.(icmp.ICMPReturn)
 		if x.Success {
 			v[i] = &packet{
 				Success:      true,
@@ -130,7 +130,7 @@ func (h *HopStatistic) Render() {
 	h.Packets.Do(func(f interface{}) {
 		if f == nil {
 			packets[i] = ' '
-		} else if !f.(imcp.ICMPReturn).Success {
+		} else if !f.(icmp.ICMPReturn).Success {
 			packets[i] = '?'
 		} else {
 			packets[i] = '.'
