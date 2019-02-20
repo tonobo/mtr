@@ -8,6 +8,11 @@ Just install with the following command:
 go get -u github.com/tonobo/mtr
 sudo setcap cap_net_raw+ep PATH-TO-GOMTR
 ```
+or a precompiled version
+
+```
+curl -sL git.io/mtr.sh | sh -s -- -b /usr/local/bin && sudo setcap cap_net_raw+ep /usr/local/bin/mtr
+```
 
 **Note: This tool maybe called with sudo or as root, because it requires raw sockets.**
 
