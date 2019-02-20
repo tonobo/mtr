@@ -1,0 +1,35 @@
+build:
+  binary: mtr
+  main: main.go
+  ldflags:
+    - >
+      -s -w 
+      -X github.com/tonobo/mtr/cli.version={{.Version}} 
+      -X github.com/tonobo/mtr/cli.date={{.Date}} 
+  goos:
+    - linux
+  env:
+    - CGO_ENABLED=0
+
+archive:
+  name_template: "{{.Binary}}_{{.Os}}_{{.Arch}}"
+
+snapshot:
+  name_template: "{{.Tag}}"
+
+checksum:
+  name_template: "mtr_checksums.txt"
+
+nfpm:
+  vendor: Task
+  homepage: https://github.com/tonobo/mtr
+  maintainer: Tim Foerster <gh-mtr@moo.gl>
+  description: Golang native MTR
+  license: MIT
+  conflicts:
+    - mtr
+  formats:
+    - deb
+    - rpm
+  name_template: "{{.ProjectName}}_{{.Os}}_{{.Arch}}"
+

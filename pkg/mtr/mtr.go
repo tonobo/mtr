@@ -9,8 +9,8 @@ import (
 	"time"
 
 	gm "github.com/buger/goterm"
-	"github.com/tonobo/mtr/hop"
-	"github.com/tonobo/mtr/icmp"
+	"github.com/tonobo/mtr/pkg/hop"
+	"github.com/tonobo/mtr/pkg/icmp"
 )
 
 type MTR struct {

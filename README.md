@@ -1,13 +1,14 @@
 # MTR
 
-A MTR implementation written in golang, completly without shell-execs.
+A MTR implementation written in golang, completely without shell-execs.
 
 Just install with the following command:
 ```
 go get -u github.com/tonobo/mtr
+sudo setcap cap_net_raw+ep PATH-TO-GOMTR
 ```
 
-**Note: This tool mayby called with sudo or as root, because it requires raw sockets.**
+**Note: This tool maybe called with sudo or as root, because it requires raw sockets.**
 
 ## Output
 
@@ -86,11 +87,3 @@ Flags:
       --max-hops int        Maximal TTL count (default 64)
   -t, --timeout duration    ICMP reply timeout (default 800ms)
 ```
-
-## Roadmap
-
-* [ ] IPv6 Support
-* [ ] HTTP API (Launch MTR and just receive Updates - Grpc, Websocket, HTTP-Polling?)
-* [ ] PTR Lookup
-* [ ] AS-Number Lookup
-* [ ] Multi-Target Support at Hop-Level
