@@ -26,6 +26,7 @@ type HopStatistic struct {
 	Packets        *ring.Ring
 	RingBufferSize int
 	pingSeq        int
+	dnsCache       map[string]string
 }
 
 type packet struct {
@@ -124,7 +125,10 @@ func (h *HopStatistic) packets() []*packet {
 	return v
 }
 
-func (h *HopStatistic) Render() {
+func (h *HopStatistic) Render(ptrLookup bool) {
+	if h.dnsCache == nil {
+		h.dnsCache = map[string]string{}
+	}
 	packets := make([]byte, h.RingBufferSize)
 	i := h.RingBufferSize - 1
 	h.Packets.Do(func(f interface{}) {
@@ -137,14 +141,10 @@ func (h *HopStatistic) Render() {
 		}
 		i--
 	})
-	addr := "???"
-	if h.Target != "" {
-		addr = h.Target
-	}
 	l := fmt.Sprintf("%d", h.RingBufferSize)
 	gm.Printf("%3d:|-- %-20s  %5.1f%%  %4d  %6.1f  %6.1f  %6.1f  %6.1f  %"+l+"s\n",
 		h.TTL,
-		addr,
+		fmt.Sprintf("%.20s", h.lookupAddr(ptrLookup)),
 		h.Loss(),
 		h.Sent,
 		h.Last.Elapsed.Seconds()*1000,
@@ -153,4 +153,23 @@ func (h *HopStatistic) Render() {
 		h.Worst.Elapsed.Seconds()*1000,
 		packets,
 	)
+}
+
+func (h *HopStatistic) lookupAddr(ptrLookup bool) string {
+	addr := "???"
+	if h.Target != "" {
+		addr = h.Target
+		if ptrLookup {
+			if key, ok := h.dnsCache[h.Target]; ok {
+				addr = key
+			} else {
+				names, err := net.LookupAddr(h.Target)
+				if err == nil && len(names) > 0 {
+					addr = names[0]
+				}
+			}
+		}
+		h.dnsCache[h.Target] = addr
+	}
+	return addr
 }

@@ -24,9 +24,18 @@ type MTR struct {
 	ringBufferSize int
 	maxHops        int
 	maxUnknownHops int
+	ptrLookup      bool
 }
 
-func NewMTR(addr, srcAddr string, timeout time.Duration, interval time.Duration, hopsleep time.Duration, maxHops, maxUnknownHops, ringBufferSize int) (*MTR, chan struct{}) {
+func NewMTR(addr, srcAddr string, timeout time.Duration, interval time.Duration,
+	hopsleep time.Duration, maxHops, maxUnknownHops, ringBufferSize int, ptr bool) (*MTR, chan struct{}, error) {
+	if net.ParseIP(addr) == nil {
+		addrs, err := net.LookupHost(addr)
+		if err != nil || len(addrs) == 0 {
+			return nil, nil, fmt.Errorf("invalid host or ip provided: %s", err)
+		}
+		addr = addrs[0]
+	}
 	return &MTR{
 		SrcAddress:     srcAddr,
 		interval:       interval,
@@ -38,7 +47,8 @@ func NewMTR(addr, srcAddr string, timeout time.Duration, interval time.Duration,
 		maxHops:        maxHops,
 		ringBufferSize: ringBufferSize,
 		maxUnknownHops: maxUnknownHops,
-	}, make(chan struct{})
+		ptrLookup:      ptr,
+	}, make(chan struct{}), nil
 }
 
 func (m *MTR) registerStatistic(ttl int, r icmp.ICMPReturn) *hop.HopStatistic {
@@ -69,7 +79,7 @@ func (m *MTR) Render(offset int) {
 	for i := 1; i <= len(m.Statistic); i++ {
 		gm.MoveCursor(1, offset+i)
 		m.mutex.RLock()
-		m.Statistic[i].Render()
+		m.Statistic[i].Render(m.ptrLookup)
 		m.mutex.RUnlock()
 	}
 }

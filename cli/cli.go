@@ -2,8 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"log"
-	"net"
 	"sync"
 	"time"
 
@@ -24,6 +22,7 @@ var (
 	MAX_HOPS         = 64
 	MAX_UNKNOWN_HOPS = 10
 	RING_BUFFER_SIZE = 50
+	PTR_LOOKUP       = false
 	jsonFmt          = false
 	srcAddr          = "0.0.0.0"
 	versionFlag      bool
@@ -38,15 +37,11 @@ var RootCmd = &cobra.Command{
 			fmt.Printf("MTR Version: %s, build date: %s\n", version, date)
 			return nil
 		}
-		ip := args[0]
-		if net.ParseIP(args[0]) == nil {
-			addrs, err := net.LookupHost(args[0])
-			if err != nil || len(addrs) == 0 {
-				log.Fatalf("invalid host or ip provided: %s", err)
-			}
-			ip = addrs[0]
+		m, ch, err := mtr.NewMTR(args[0], srcAddr, TIMEOUT, INTERVAL, HOP_SLEEP,
+			MAX_HOPS, MAX_UNKNOWN_HOPS, RING_BUFFER_SIZE, PTR_LOOKUP)
+		if err != nil {
+			return err
 		}
-		m, ch := mtr.NewMTR(ip, srcAddr, TIMEOUT, INTERVAL, HOP_SLEEP, MAX_HOPS, MAX_UNKNOWN_HOPS, RING_BUFFER_SIZE)
 		if jsonFmt {
 			go func(ch chan struct{}) {
 				for {
@@ -93,6 +88,7 @@ func init() {
 	RootCmd.Flags().IntVar(&MAX_UNKNOWN_HOPS, "max-unknown-hops", MAX_UNKNOWN_HOPS, "Maximal hops that do not reply before stopping to look")
 	RootCmd.Flags().IntVar(&RING_BUFFER_SIZE, "buffer-size", RING_BUFFER_SIZE, "Cached packet buffer size")
 	RootCmd.Flags().BoolVar(&jsonFmt, "json", jsonFmt, "Print json results")
+	RootCmd.Flags().BoolVarP(&PTR_LOOKUP, "ptr", "n", PTR_LOOKUP, "Reverse lookup on host")
 	RootCmd.Flags().BoolVar(&versionFlag, "version", false, "Print version")
 	RootCmd.Flags().StringVar(&srcAddr, "address", srcAddr, "The address to be bound the outgoing socket")
 }
