@@ -13,6 +13,9 @@ import (
 )
 
 var (
+	version string
+	date    string
+
 	COUNT            = 5
 	TIMEOUT          = 800 * time.Millisecond
 	INTERVAL         = 100 * time.Millisecond
@@ -22,12 +25,17 @@ var (
 	RING_BUFFER_SIZE = 50
 	jsonFmt          = false
 	srcAddr          = "0.0.0.0"
+	versionFlag      bool
 )
 
 // rootCmd represents the root command
 var RootCmd = &cobra.Command{
 	Use: "mtr TARGET",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if versionFlag {
+			fmt.Printf("MTR Version: %s, build date: %s\n", version, date)
+			return nil
+		}
 		if len(args) != 1 {
 			return errors.New("No target provided")
 		}
@@ -78,5 +86,6 @@ func init() {
 	RootCmd.Flags().IntVar(&MAX_UNKNOWN_HOPS, "max-unknown-hops", MAX_UNKNOWN_HOPS, "Maximal hops that do not reply before stopping to look")
 	RootCmd.Flags().IntVar(&RING_BUFFER_SIZE, "buffer-size", RING_BUFFER_SIZE, "Cached packet buffer size")
 	RootCmd.Flags().BoolVar(&jsonFmt, "json", jsonFmt, "Print json results")
+	RootCmd.Flags().BoolVar(&versionFlag, "version", false, "Print version")
 	RootCmd.Flags().StringVar(&srcAddr, "address", srcAddr, "The address to be bound the outgoing socket")
 }

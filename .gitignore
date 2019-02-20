@@ -1,3 +1,4 @@
 *.swp
-mtr-bin
+/mtr-bin
+/mtr
 /dist
