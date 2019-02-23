@@ -39,7 +39,12 @@ func (s *HopStatistic) Next(srcAddr string) {
 		return
 	}
 	s.pingSeq++
-	r, _ := icmp.SendICMP(srcAddr, s.Dest, s.Target, s.TTL, s.PID, s.Timeout, s.pingSeq)
+	var r icmp.ICMPReturn
+	if s.Dest.IP.To4() != nil {
+		r, _ = icmp.SendICMP(srcAddr, s.Dest, s.Target, s.TTL, s.PID, s.Timeout, s.pingSeq)
+	} else {
+		r, _ = icmp.SendICMPv6(srcAddr, s.Dest, s.Target, s.TTL, s.PID, s.Timeout, s.pingSeq)
+	}
 	s.Packets = s.Packets.Prev()
 	s.Packets.Value = r
 

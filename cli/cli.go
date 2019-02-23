@@ -24,7 +24,7 @@ var (
 	RING_BUFFER_SIZE = 50
 	PTR_LOOKUP       = false
 	jsonFmt          = false
-	srcAddr          = "0.0.0.0"
+	srcAddr          = ""
 	versionFlag      bool
 )
 

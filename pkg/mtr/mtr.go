@@ -36,6 +36,13 @@ func NewMTR(addr, srcAddr string, timeout time.Duration, interval time.Duration,
 		}
 		addr = addrs[0]
 	}
+	if srcAddr == "" {
+		if net.ParseIP(addr).To4() != nil {
+			srcAddr = "0.0.0.0"
+		} else {
+			srcAddr = "::"
+		}
+	}
 	return &MTR{
 		SrcAddress:     srcAddr,
 		interval:       interval,
@@ -109,7 +116,13 @@ func (m *MTR) discover(ch chan struct{}) {
 	unknownHopsCount := 0
 	for ttl := 1; ttl < m.maxHops; ttl++ {
 		time.Sleep(m.hopsleep)
-		hopReturn, err := icmp.SendDiscoverICMP(m.SrcAddress, &ipAddr, ttl, pid, m.timeout, 1)
+		var hopReturn icmp.ICMPReturn
+		var err error
+		if ipAddr.IP.To4() != nil {
+			hopReturn, err = icmp.SendDiscoverICMP(m.SrcAddress, &ipAddr, ttl, pid, m.timeout, 1)
+		} else {
+			hopReturn, err = icmp.SendDiscoverICMPv6(m.SrcAddress, &ipAddr, ttl, pid, m.timeout, 1)
+		}
 
 		m.mutex.Lock()
 		s := m.registerStatistic(ttl, hopReturn)
