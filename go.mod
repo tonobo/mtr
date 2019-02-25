@@ -1,7 +1,7 @@
 module github.com/tonobo/mtr
 
 require (
-	github.com/buger/goterm v0.0.0-20181115115552-c206103e1f37
+	github.com/gizak/termui v2.3.0
 	github.com/fatih/color v1.7.0 // indirect
 	github.com/hokaccha/go-prettyjson v0.0.0-20180920040306-f579f869bbfe
 	github.com/mattn/go-colorable v0.1.0 // indirect
