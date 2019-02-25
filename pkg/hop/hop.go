@@ -7,7 +7,6 @@ import (
 	"net"
 	"time"
 
-	gm "github.com/buger/goterm"
 	"github.com/tonobo/mtr/pkg/icmp"
 )
 
@@ -147,7 +146,7 @@ func (h *HopStatistic) Render(ptrLookup bool) {
 		i--
 	})
 	l := fmt.Sprintf("%d", h.RingBufferSize)
-	gm.Printf("%3d:|-- %-20s  %5.1f%%  %4d  %6.1f  %6.1f  %6.1f  %6.1f  %"+l+"s\n",
+	fmt.Printf("%3d:|-- %-20s  %5.1f%%  %4d  %6.1f  %6.1f  %6.1f  %6.1f  %"+l+"s\n",
 		h.TTL,
 		fmt.Sprintf("%.20s", h.lookupAddr(ptrLookup)),
 		h.Loss(),

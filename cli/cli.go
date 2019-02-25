@@ -2,11 +2,13 @@ package cli
 
 import (
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
-	tm "github.com/buger/goterm"
+	ui "github.com/gizak/termui"
 	pj "github.com/hokaccha/go-prettyjson"
+	tb "github.com/nsf/termbox-go"
 	"github.com/spf13/cobra"
 	"github.com/tonobo/mtr/pkg/mtr"
 )
@@ -17,7 +19,7 @@ var (
 
 	COUNT            = 5
 	TIMEOUT          = 800 * time.Millisecond
-	INTERVAL         = 100 * time.Millisecond
+	INTERVAL         = 1000 * time.Millisecond
 	HOP_SLEEP        = time.Nanosecond
 	MAX_HOPS         = 64
 	MAX_UNKNOWN_HOPS = 10
@@ -54,7 +56,11 @@ var RootCmd = &cobra.Command{
 			return nil
 		}
 		fmt.Println("Start:", time.Now())
-		tm.Clear()
+		if err := ui.Init(); err != nil {
+			log.Fatalf("failed to initialize termui: %v", err)
+		}
+		defer ui.Close()
+
 		mu := &sync.Mutex{}
 		go func(ch chan struct{}) {
 			for {
@@ -74,9 +80,8 @@ var RootCmd = &cobra.Command{
 }
 
 func render(m *mtr.MTR) {
-	tm.MoveCursor(1, 1)
 	m.Render(1)
-	tm.Flush() // Call it every time at the end of rendering
+	tb.Flush() // Call it every time at the end of rendering
 }
 
 func init() {
