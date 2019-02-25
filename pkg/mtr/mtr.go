@@ -87,7 +87,7 @@ func (m *MTR) Render(offset int) {
 	l := fmt.Sprintf("%d", m.ringBufferSize)
 	fmt.Printf("HOP:    %-20s  %5s%%  %4s  %6s  %6s  %6s  %6s  %"+l+"s\n", "Address", "Loss", "Sent", "Last", "Avg", "Best", "Worst", "Packets")
 	for i := 1; i <= len(m.Statistic); i++ {
-		tb.SetCursor(0, 0)
+		tb.HideCursor()
 		m.mutex.RLock()
 		m.Statistic[i].Render(m.ptrLookup)
 		m.mutex.RUnlock()
