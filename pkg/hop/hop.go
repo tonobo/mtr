@@ -27,6 +27,7 @@ type HopStatistic struct {
 	RingBufferSize int
 	pingSeq        int
 	dnsCache       map[string]string
+	SubIdentifier  int
 }
 
 type packet struct {
@@ -41,9 +42,9 @@ func (s *HopStatistic) Next(srcAddr string) {
 	s.pingSeq++
 	var r icmp.ICMPReturn
 	if s.Dest.IP.To4() != nil {
-		r, _ = icmp.SendICMP(srcAddr, s.Dest, s.Target, s.TTL, s.PID, s.Timeout, s.pingSeq)
+		r, _ = icmp.SendICMP(srcAddr, s.Dest, s.Target, s.TTL, s.PID, s.Timeout, s.pingSeq, s.SubIdentifier)
 	} else {
-		r, _ = icmp.SendICMPv6(srcAddr, s.Dest, s.Target, s.TTL, s.PID, s.Timeout, s.pingSeq)
+		r, _ = icmp.SendICMPv6(srcAddr, s.Dest, s.Target, s.TTL, s.PID, s.Timeout, s.pingSeq, s.SubIdentifier)
 	}
 	s.Packets = s.Packets.Prev()
 	s.Packets.Value = r

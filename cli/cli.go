@@ -38,7 +38,7 @@ var RootCmd = &cobra.Command{
 			return nil
 		}
 		m, ch, err := mtr.NewMTR(args[0], srcAddr, TIMEOUT, INTERVAL, HOP_SLEEP,
-			MAX_HOPS, MAX_UNKNOWN_HOPS, RING_BUFFER_SIZE, PTR_LOOKUP)
+			MAX_HOPS, MAX_UNKNOWN_HOPS, RING_BUFFER_SIZE, PTR_LOOKUP, 0)
 		if err != nil {
 			return err
 		}

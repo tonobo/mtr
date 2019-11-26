@@ -25,10 +25,11 @@ type MTR struct {
 	maxHops        int
 	maxUnknownHops int
 	ptrLookup      bool
+	subIdentifier  int // Support 0 to 15. This will be the first 4 bits of ICMP sequence number.
 }
 
 func NewMTR(addr, srcAddr string, timeout time.Duration, interval time.Duration,
-	hopsleep time.Duration, maxHops, maxUnknownHops, ringBufferSize int, ptr bool) (*MTR, chan struct{}, error) {
+	hopsleep time.Duration, maxHops, maxUnknownHops, ringBufferSize int, ptr bool, subIdentifier int) (*MTR, chan struct{}, error) {
 	if net.ParseIP(addr) == nil {
 		addrs, err := net.LookupHost(addr)
 		if err != nil || len(addrs) == 0 {
@@ -55,6 +56,7 @@ func NewMTR(addr, srcAddr string, timeout time.Duration, interval time.Duration,
 		ringBufferSize: ringBufferSize,
 		maxUnknownHops: maxUnknownHops,
 		ptrLookup:      ptr,
+		subIdentifier:  subIdentifier,
 	}, make(chan struct{}), nil
 }
 
@@ -71,6 +73,7 @@ func (m *MTR) registerStatistic(ttl int, r icmp.ICMPReturn) *hop.HopStatistic {
 		SumElapsed:     r.Elapsed,
 		Packets:        ring.New(m.ringBufferSize),
 		RingBufferSize: m.ringBufferSize,
+		SubIdentifier:  m.subIdentifier,
 	}
 	if !r.Success {
 		m.Statistic[ttl].Lost++
@@ -119,9 +122,9 @@ func (m *MTR) discover(ch chan struct{}) {
 		var hopReturn icmp.ICMPReturn
 		var err error
 		if ipAddr.IP.To4() != nil {
-			hopReturn, err = icmp.SendDiscoverICMP(m.SrcAddress, &ipAddr, ttl, pid, m.timeout, 1)
+			hopReturn, err = icmp.SendDiscoverICMP(m.SrcAddress, &ipAddr, ttl, pid, m.timeout, 1, m.subIdentifier)
 		} else {
-			hopReturn, err = icmp.SendDiscoverICMPv6(m.SrcAddress, &ipAddr, ttl, pid, m.timeout, 1)
+			hopReturn, err = icmp.SendDiscoverICMPv6(m.SrcAddress, &ipAddr, ttl, pid, m.timeout, 1, m.subIdentifier)
 		}
 
 		m.mutex.Lock()
