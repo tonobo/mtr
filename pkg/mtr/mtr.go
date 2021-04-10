@@ -94,13 +94,21 @@ func (m *MTR) Render(offset int) {
 func (m *MTR) ping(ch chan struct{}, count int) {
 	for i := 0; i < count; i++ {
 		time.Sleep(m.interval)
+		wg := &sync.WaitGroup{}
+		wg.Add(len(m.Statistic))
+
 		for i := 1; i <= len(m.Statistic); i++ {
 			time.Sleep(m.hopsleep)
-			m.mutex.RLock()
-			m.Statistic[i].Next(m.SrcAddress)
-			m.mutex.RUnlock()
-			ch <- struct{}{}
+
+			go func(i int) {
+				m.mutex.RLock()
+				m.Statistic[i].Next(m.SrcAddress)
+				m.mutex.RUnlock()
+				ch <- struct{}{}
+				wg.Done()
+			}(i)
 		}
+		wg.Wait()
 	}
 }
 
