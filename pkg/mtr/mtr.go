@@ -3,8 +3,12 @@ package mtr
 import (
 	"container/ring"
 	"fmt"
+	"math"
+	"math/rand"
 	"net"
 	"os"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,7 +24,7 @@ type MTR struct {
 	interval       time.Duration
 	Address        string `json:"destination"`
 	hopsleep       time.Duration
-	Statistic      map[int]*hop.HopStatistic `json:"statistic"`
+	Statistic      map[string]*hop.HopStatistic `json:"statistic"`
 	ringBufferSize int
 	maxHops        int
 	maxUnknownHops int
@@ -50,7 +54,7 @@ func NewMTR(addr, srcAddr string, timeout time.Duration, interval time.Duration,
 		hopsleep:       hopsleep,
 		Address:        addr,
 		mutex:          &sync.RWMutex{},
-		Statistic:      map[int]*hop.HopStatistic{},
+		Statistic:      map[string]*hop.HopStatistic{},
 		maxHops:        maxHops,
 		ringBufferSize: ringBufferSize,
 		maxUnknownHops: maxUnknownHops,
@@ -59,95 +63,151 @@ func NewMTR(addr, srcAddr string, timeout time.Duration, interval time.Duration,
 }
 
 func (m *MTR) registerStatistic(ttl int, r icmp.ICMPReturn) *hop.HopStatistic {
-	m.Statistic[ttl] = &hop.HopStatistic{
-		Sent:           1,
-		TTL:            ttl,
-		Target:         r.Addr,
-		Timeout:        m.timeout,
-		Last:           r,
-		Best:           r,
-		Worst:          r,
-		Lost:           0,
-		SumElapsed:     r.Elapsed,
-		Packets:        ring.New(m.ringBufferSize),
-		RingBufferSize: m.ringBufferSize,
+	if r.Addr == "" {
+		r.Addr = "???"
 	}
+	id := fmt.Sprintf("%3d-%v", ttl, r.Addr)
+
+	s, ok := m.Statistic[id]
+	if !ok {
+		s = &hop.HopStatistic{
+			Sent:           0,
+			TTL:            ttl,
+			Target:         r.Addr,
+			Timeout:        m.timeout,
+			Last:           r,
+			Best:           r,
+			Worst:          r,
+			Lost:           0,
+			Packets:        ring.New(m.ringBufferSize),
+			RingBufferSize: m.ringBufferSize,
+		}
+		m.Statistic[id] = s
+	}
+
+	s.Last = r
+	s.Sent++
+
 	if !r.Success {
-		m.Statistic[ttl].Lost++
+		s.Lost++
+		setSentToHopUnkown(ttl, m.Statistic)
+		return s // do not count failed into statistics
 	}
-	m.Statistic[ttl].Packets.Value = r
-	return m.Statistic[ttl]
+
+	setSentToHopUnkown(ttl, m.Statistic)
+
+	s.SumElapsed = r.Elapsed + s.SumElapsed
+
+	if s.Best.Elapsed > r.Elapsed {
+		s.Best = r
+	}
+	if s.Worst.Elapsed < r.Elapsed {
+		s.Worst = r
+	}
+
+	s.Packets = s.Packets.Prev()
+	s.Packets.Value = r
+	return s
+}
+
+// sent + lost
+func ttlCheckedCount(ttl int, m map[string]*hop.HopStatistic) int {
+	sent := 0
+
+	for key, v := range m {
+		if v.TTL != ttl {
+			continue
+		}
+
+		if strings.HasSuffix(key, "-???") {
+			sent += v.Lost
+			continue
+		}
+
+		sent += v.Sent
+	}
+	return sent
+}
+
+func setSentToHopUnkown(ttl int, m map[string]*hop.HopStatistic) {
+	for key, v := range m {
+		if !strings.HasSuffix(key, "-???") {
+			continue
+		}
+		if v.TTL != ttl {
+			continue
+		}
+
+		v.Sent = ttlCheckedCount(ttl, m)
+	}
 }
 
 func (m *MTR) Render(offset int) {
 	gm.MoveCursor(1, offset)
 	l := fmt.Sprintf("%d", m.ringBufferSize)
 	gm.Printf("HOP:    %-20s  %5s%%  %4s  %6s  %6s  %6s  %6s  %"+l+"s\n", "Address", "Loss", "Sent", "Last", "Avg", "Best", "Worst", "Packets")
-	for i := 1; i <= len(m.Statistic); i++ {
+	i := 0
+
+	keys := make([]string, 0, len(m.Statistic))
+	for k := range m.Statistic {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	lastTTL := 0
+	for _, k := range keys {
+		i++
 		gm.MoveCursor(1, offset+i)
 		m.mutex.RLock()
-		m.Statistic[i].Render(m.ptrLookup)
+		m.Statistic[k].Render(lastTTL, m.ptrLookup)
 		m.mutex.RUnlock()
-	}
-}
-
-func (m *MTR) ping(ch chan struct{}, count int) {
-	for i := 0; i < count; i++ {
-		time.Sleep(m.interval)
-		wg := &sync.WaitGroup{}
-		wg.Add(len(m.Statistic))
-
-		for i := 1; i <= len(m.Statistic); i++ {
-			time.Sleep(m.hopsleep)
-
-			go func(i int) {
-				m.mutex.RLock()
-				m.Statistic[i].Next(m.SrcAddress)
-				m.mutex.RUnlock()
-				ch <- struct{}{}
-				wg.Done()
-			}(i)
-		}
-		wg.Wait()
+		lastTTL = m.Statistic[k].TTL
 	}
 }
 
 func (m *MTR) Run(ch chan struct{}, count int) {
-	m.discover(ch)
-	m.ping(ch, count-1)
+	m.discover(ch, count)
 }
 
 // discover discovers all hops on the route
-func (m *MTR) discover(ch chan struct{}) {
+func (m *MTR) discover(ch chan struct{}, count int) {
+	rand.Seed(time.Now().Unix())
+	seq := rand.Intn(math.MaxInt16)
 	ipAddr := net.IPAddr{IP: net.ParseIP(m.Address)}
 	pid := os.Getpid() & 0xffff
-	unknownHopsCount := 0
-	for ttl := 1; ttl < m.maxHops; ttl++ {
-		time.Sleep(m.hopsleep)
-		var hopReturn icmp.ICMPReturn
-		var err error
-		if ipAddr.IP.To4() != nil {
-			hopReturn, err = icmp.SendDiscoverICMP(m.SrcAddress, &ipAddr, ttl, pid, m.timeout, 1)
-		} else {
-			hopReturn, err = icmp.SendDiscoverICMPv6(m.SrcAddress, &ipAddr, ttl, pid, m.timeout, 1)
-		}
 
-		m.mutex.Lock()
-		s := m.registerStatistic(ttl, hopReturn)
-		s.Dest = &ipAddr
-		s.PID = pid
-		m.mutex.Unlock()
-		ch <- struct{}{}
-		if hopReturn.Addr == m.Address {
-			break
-		}
-		if err != nil || !hopReturn.Success {
-			unknownHopsCount++
-			if unknownHopsCount >= m.maxUnknownHops {
+	for i := 1; i <= count; i++ {
+		time.Sleep(m.interval)
+
+		unknownHopsCount := 0
+		for ttl := 1; ttl < m.maxHops; ttl++ {
+			seq++
+			time.Sleep(m.hopsleep)
+			var hopReturn icmp.ICMPReturn
+			var err error
+			if ipAddr.IP.To4() != nil {
+				hopReturn, err = icmp.SendDiscoverICMP(m.SrcAddress, &ipAddr, ttl, pid, m.timeout, seq)
+			} else {
+				hopReturn, err = icmp.SendDiscoverICMPv6(m.SrcAddress, &ipAddr, ttl, pid, m.timeout, seq)
+			}
+
+			m.mutex.Lock()
+			s := m.registerStatistic(ttl, hopReturn)
+			s.Dest = &ipAddr
+			s.PID = pid
+			m.mutex.Unlock()
+			ch <- struct{}{}
+			if hopReturn.Addr == m.Address {
 				break
 			}
-			continue
+			if err != nil || !hopReturn.Success {
+				unknownHopsCount++
+				if unknownHopsCount >= m.maxUnknownHops {
+					break
+				}
+				continue
+			}
+			unknownHopsCount = 0
 		}
-		unknownHopsCount = 0
 	}
 }

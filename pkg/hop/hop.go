@@ -26,45 +26,12 @@ type HopStatistic struct {
 	Lost           int
 	Packets        *ring.Ring
 	RingBufferSize int
-	pingSeq        int
 	dnsCache       map[string]string
 }
 
 type packet struct {
 	Success      bool    `json:"success"`
 	ResponseTime float64 `json:"respond_ms"`
-}
-
-func (s *HopStatistic) Next(srcAddr string) {
-	if s.Target == "" {
-		return
-	}
-	s.pingSeq++
-	var r icmp.ICMPReturn
-	if s.Dest.IP.To4() != nil {
-		r, _ = icmp.SendICMP(srcAddr, s.Dest, s.Target, s.TTL, s.PID, s.Timeout, s.pingSeq)
-	} else {
-		r, _ = icmp.SendICMPv6(srcAddr, s.Dest, s.Target, s.TTL, s.PID, s.Timeout, s.pingSeq)
-	}
-	s.Packets = s.Packets.Prev()
-	s.Packets.Value = r
-
-	s.Sent++
-
-	s.Last = r
-	if !r.Success {
-		s.Lost++
-		return // do not count failed into statistics
-	}
-
-	s.SumElapsed = r.Elapsed + s.SumElapsed
-
-	if s.Best.Elapsed > r.Elapsed {
-		s.Best = r
-	}
-	if s.Worst.Elapsed < r.Elapsed {
-		s.Worst = r
-	}
 }
 
 func (h *HopStatistic) MarshalJSON() ([]byte, error) {
@@ -159,7 +126,7 @@ func (h *HopStatistic) packets() []*packet {
 	return v
 }
 
-func (h *HopStatistic) Render(ptrLookup bool) {
+func (h *HopStatistic) Render(lastTTL int, ptrLookup bool) {
 	if h.dnsCache == nil {
 		h.dnsCache = map[string]string{}
 	}
@@ -176,8 +143,14 @@ func (h *HopStatistic) Render(ptrLookup bool) {
 		i--
 	})
 	l := fmt.Sprintf("%d", h.RingBufferSize)
-	gm.Printf("%3d:|-- %-20s  %5.1f%%  %4d  %6.1f  %6.1f  %6.1f  %6.1f  %"+l+"s\n",
-		h.TTL,
+
+	ttl := fmt.Sprintf("%3d:|--", h.TTL)
+	if h.TTL == lastTTL {
+		ttl = "       "
+	}
+
+	gm.Printf("%s %-20s  %5.1f%%  %4d  %6.1f  %6.1f  %6.1f  %6.1f  %"+l+"s\n",
+		ttl,
 		fmt.Sprintf("%.20s", h.lookupAddr(ptrLookup)),
 		h.Loss(),
 		h.Sent,
