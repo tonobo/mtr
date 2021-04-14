@@ -18,7 +18,7 @@ type HopStatistic struct {
 	PID            int
 	Sent           int
 	TTL            int
-	Target         string
+	Targets        []string
 	Last           icmp.ICMPReturn
 	Best           icmp.ICMPReturn
 	Worst          icmp.ICMPReturn
@@ -51,7 +51,7 @@ func (h *HopStatistic) MarshalJSON() ([]byte, error) {
 		Sent:             h.Sent,
 		TTL:              h.TTL,
 		Loss:             h.Loss(),
-		Target:           h.Target,
+		Target:           fmt.Sprintf("%v", h.Targets), // TODO:
 		PacketBufferSize: h.RingBufferSize,
 		Last:             h.Last.Elapsed.Seconds() * 1000,
 		Best:             h.Best.Elapsed.Seconds() * 1000,
@@ -126,7 +126,7 @@ func (h *HopStatistic) packets() []*packet {
 	return v
 }
 
-func (h *HopStatistic) Render(lastTTL int, ptrLookup bool) {
+func (h *HopStatistic) Render(ptrLookup bool) {
 	if h.dnsCache == nil {
 		h.dnsCache = map[string]string{}
 	}
@@ -144,14 +144,9 @@ func (h *HopStatistic) Render(lastTTL int, ptrLookup bool) {
 	})
 	l := fmt.Sprintf("%d", h.RingBufferSize)
 
-	ttl := fmt.Sprintf("%3d:|--", h.TTL)
-	if h.TTL == lastTTL {
-		ttl = "       "
-	}
-
-	gm.Printf("%s %-20s  %5.1f%%  %4d  %6.1f  %6.1f  %6.1f  %6.1f  %"+l+"s\n",
-		ttl,
-		fmt.Sprintf("%.20s", h.lookupAddr(ptrLookup)),
+	gm.Printf("%3d:|-- %-20s  %5.1f%%  %4d  %6.1f  %6.1f  %6.1f  %6.1f  %"+l+"s\n",
+		h.TTL,
+		fmt.Sprintf("%.20s", h.lookupAddr(ptrLookup, 0)),
 		h.Loss(),
 		h.Sent,
 		h.Last.Elapsed.Seconds()*1000,
@@ -162,21 +157,21 @@ func (h *HopStatistic) Render(lastTTL int, ptrLookup bool) {
 	)
 }
 
-func (h *HopStatistic) lookupAddr(ptrLookup bool) string {
+func (h *HopStatistic) lookupAddr(ptrLookup bool, index int) string {
 	addr := "???"
-	if h.Target != "" {
-		addr = h.Target
+	if h.Targets[index] != "" {
+		addr = h.Targets[index]
 		if ptrLookup {
-			if key, ok := h.dnsCache[h.Target]; ok {
+			if key, ok := h.dnsCache[h.Targets[index]]; ok {
 				addr = key
 			} else {
-				names, err := net.LookupAddr(h.Target)
+				names, err := net.LookupAddr(h.Targets[index])
 				if err == nil && len(names) > 0 {
 					addr = names[0]
 				}
 			}
 		}
-		h.dnsCache[h.Target] = addr
+		h.dnsCache[h.Targets[index]] = addr
 	}
 	return addr
 }

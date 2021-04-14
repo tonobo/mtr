@@ -7,8 +7,6 @@ import (
 	"math/rand"
 	"net"
 	"os"
-	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -24,7 +22,7 @@ type MTR struct {
 	interval       time.Duration
 	Address        string `json:"destination"`
 	hopsleep       time.Duration
-	Statistic      map[string]*hop.HopStatistic `json:"statistic"`
+	Statistic      map[int]*hop.HopStatistic `json:"statistic"`
 	ringBufferSize int
 	maxHops        int
 	maxUnknownHops int
@@ -54,7 +52,7 @@ func NewMTR(addr, srcAddr string, timeout time.Duration, interval time.Duration,
 		hopsleep:       hopsleep,
 		Address:        addr,
 		mutex:          &sync.RWMutex{},
-		Statistic:      map[string]*hop.HopStatistic{},
+		Statistic:      map[int]*hop.HopStatistic{},
 		maxHops:        maxHops,
 		ringBufferSize: ringBufferSize,
 		maxUnknownHops: maxUnknownHops,
@@ -63,105 +61,86 @@ func NewMTR(addr, srcAddr string, timeout time.Duration, interval time.Duration,
 }
 
 func (m *MTR) registerStatistic(ttl int, r icmp.ICMPReturn) *hop.HopStatistic {
-	if r.Addr == "" {
-		r.Addr = "???"
-	}
-	id := fmt.Sprintf("%3d-%v", ttl, r.Addr)
-
-	s, ok := m.Statistic[id]
+	s, ok := m.Statistic[ttl]
 	if !ok {
 		s = &hop.HopStatistic{
 			Sent:           0,
 			TTL:            ttl,
-			Target:         r.Addr,
 			Timeout:        m.timeout,
 			Last:           r,
-			Best:           r,
 			Worst:          r,
 			Lost:           0,
 			Packets:        ring.New(m.ringBufferSize),
 			RingBufferSize: m.ringBufferSize,
 		}
-		m.Statistic[id] = s
+		m.Statistic[ttl] = s
 	}
 
 	s.Last = r
 	s.Sent++
 
+	s.Targets = addTarget(s.Targets, r.Addr)
+
+	s.Packets = s.Packets.Prev()
+	s.Packets.Value = r
+
 	if !r.Success {
 		s.Lost++
-		setSentToHopUnkown(ttl, m.Statistic)
 		return s // do not count failed into statistics
 	}
 
-	setSentToHopUnkown(ttl, m.Statistic)
-
 	s.SumElapsed = r.Elapsed + s.SumElapsed
 
-	if s.Best.Elapsed > r.Elapsed {
+	if !s.Best.Success || s.Best.Elapsed > r.Elapsed {
 		s.Best = r
 	}
 	if s.Worst.Elapsed < r.Elapsed {
 		s.Worst = r
 	}
 
-	s.Packets = s.Packets.Prev()
-	s.Packets.Value = r
 	return s
 }
 
-// sent + lost
-func ttlCheckedCount(ttl int, m map[string]*hop.HopStatistic) int {
-	sent := 0
-
-	for key, v := range m {
-		if v.TTL != ttl {
-			continue
+func addTarget(currentTargets []string, toAdd string) []string {
+	for _, t := range currentTargets {
+		if t == toAdd {
+			// already added
+			return currentTargets
 		}
-
-		if strings.HasSuffix(key, "-???") {
-			sent += v.Lost
-			continue
-		}
-
-		sent += v.Sent
 	}
-	return sent
+
+	var newTargets []string
+	if len(currentTargets) > 0 {
+		// do not add no-ip target
+		if toAdd == "" {
+			return currentTargets
+		}
+
+		// remove no-ip target
+		for _, t := range currentTargets {
+			if t != "" {
+				newTargets = append(newTargets, t)
+			}
+		}
+	} else {
+		newTargets = currentTargets
+	}
+
+	// add the new one
+	return append(newTargets, toAdd)
 }
 
-func setSentToHopUnkown(ttl int, m map[string]*hop.HopStatistic) {
-	for key, v := range m {
-		if !strings.HasSuffix(key, "-???") {
-			continue
-		}
-		if v.TTL != ttl {
-			continue
-		}
-
-		v.Sent = ttlCheckedCount(ttl, m)
-	}
-}
-
+// TODO: aggregates everything using the first target even when there are multiple
 func (m *MTR) Render(offset int) {
 	gm.MoveCursor(1, offset)
 	l := fmt.Sprintf("%d", m.ringBufferSize)
 	gm.Printf("HOP:    %-20s  %5s%%  %4s  %6s  %6s  %6s  %6s  %"+l+"s\n", "Address", "Loss", "Sent", "Last", "Avg", "Best", "Worst", "Packets")
-	i := 0
 
-	keys := make([]string, 0, len(m.Statistic))
-	for k := range m.Statistic {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	lastTTL := 0
-	for _, k := range keys {
-		i++
+	for i := 1; i <= len(m.Statistic); i++ {
 		gm.MoveCursor(1, offset+i)
 		m.mutex.RLock()
-		m.Statistic[k].Render(lastTTL, m.ptrLookup)
+		m.Statistic[i].Render(m.ptrLookup)
 		m.mutex.RUnlock()
-		lastTTL = m.Statistic[k].TTL
 	}
 }
 
