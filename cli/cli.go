@@ -49,7 +49,10 @@ var RootCmd = &cobra.Command{
 				}
 			}(ch)
 			m.Run(ch, COUNT)
-			s, _ := pj.Marshal(m)
+			s, err := pj.Marshal(m)
+			if err != nil {
+				return err
+			}
 			fmt.Println(string(s))
 			return nil
 		}
