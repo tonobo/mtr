@@ -4,6 +4,7 @@ import (
 	"container/ring"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net"
 	"time"
 
@@ -75,6 +76,7 @@ func (h *HopStatistic) MarshalJSON() ([]byte, error) {
 		Worst            float64   `json:"worst_ms"`
 		Loss             float64   `json:"loss_percent"`
 		Avg              float64   `json:"avg_ms"`
+		Stdev            float64   `json:"stdev_ms"`
 		PacketBufferSize int       `json:"packet_buffer_size"`
 		TTL              int       `json:"ttl"`
 		Packets          []*packet `json:"packet_list_ms"`
@@ -88,6 +90,7 @@ func (h *HopStatistic) MarshalJSON() ([]byte, error) {
 		Best:             h.Best.Elapsed.Seconds() * 1000,
 		Worst:            h.Worst.Elapsed.Seconds() * 1000,
 		Avg:              h.Avg(),
+		Stdev:            h.Stdev(),
 		Packets:          h.packets(),
 	})
 }
@@ -98,6 +101,32 @@ func (h *HopStatistic) Avg() float64 {
 		avg = h.SumElapsed.Seconds() * 1000 / float64(h.Sent-h.Lost)
 	}
 	return avg
+}
+
+func (h *HopStatistic) Stdev() float64 {
+	avg := h.Avg()
+	result := 0.0
+	n := 0
+
+	for _, p := range h.packets() {
+		if p == nil || !p.Success {
+			continue
+		}
+
+		n++
+		distance := math.Abs(p.ResponseTime - avg)
+		dsquare := distance * distance
+		result += dsquare
+	}
+
+	result = result / float64(n)
+	result = math.Sqrt(result)
+
+	if math.IsNaN(result) {
+		result = 0
+	}
+
+	return result
 }
 
 func (h *HopStatistic) Loss() float64 {
