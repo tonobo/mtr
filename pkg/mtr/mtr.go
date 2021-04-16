@@ -143,7 +143,7 @@ func (m *MTR) discover(ch chan struct{}) {
 		}
 		if err != nil || !hopReturn.Success {
 			unknownHopsCount++
-			if unknownHopsCount > m.maxUnknownHops {
+			if unknownHopsCount >= m.maxUnknownHops {
 				break
 			}
 			continue
