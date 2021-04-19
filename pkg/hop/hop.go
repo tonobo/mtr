@@ -51,7 +51,7 @@ func (h *HopStatistic) MarshalJSON() ([]byte, error) {
 		Sent:             h.Sent,
 		TTL:              h.TTL,
 		Loss:             h.Loss(),
-		Target:           fmt.Sprintf("%v", h.Targets), // TODO:
+		Target:           fmt.Sprintf("%v", h.Targets),
 		PacketBufferSize: h.RingBufferSize,
 		Last:             h.Last.Elapsed.Seconds() * 1000,
 		Best:             h.Best.Elapsed.Seconds() * 1000,
@@ -143,7 +143,6 @@ func (h *HopStatistic) Render(ptrLookup bool) {
 		i--
 	})
 	l := fmt.Sprintf("%d", h.RingBufferSize)
-
 	gm.Printf("%3d:|-- %-20s  %5.1f%%  %4d  %6.1f  %6.1f  %6.1f  %6.1f  %"+l+"s\n",
 		h.TTL,
 		fmt.Sprintf("%.20s", h.lookupAddr(ptrLookup, 0)),
