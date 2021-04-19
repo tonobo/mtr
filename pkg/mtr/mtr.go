@@ -6,7 +6,6 @@ import (
 	"math"
 	"math/rand"
 	"net"
-	"os"
 	"sync"
 	"time"
 
@@ -135,7 +134,6 @@ func (m *MTR) Render(offset int) {
 	gm.MoveCursor(1, offset)
 	l := fmt.Sprintf("%d", m.ringBufferSize)
 	gm.Printf("HOP:    %-20s  %5s%%  %4s  %6s  %6s  %6s  %6s  %"+l+"s\n", "Address", "Loss", "Sent", "Last", "Avg", "Best", "Worst", "Packets")
-
 	for i := 1; i <= len(m.Statistic); i++ {
 		gm.MoveCursor(1, offset+i)
 		m.mutex.RLock()
@@ -150,10 +148,13 @@ func (m *MTR) Run(ch chan struct{}, count int) {
 
 // discover discovers all hops on the route
 func (m *MTR) discover(ch chan struct{}, count int) {
-	rand.Seed(time.Now().Unix())
-	seq := rand.Intn(math.MaxInt16)
+	// Sequences are incrementing as we don't won't to get old replys which might be from a previous run (where we timed out and continued).
+	// We can't use the process id as unique identifier as there might be multiple runs within a single binary, thus we use a fixed pseudo random number.
+	rand.Seed(time.Now().UnixNano())
+	seq := rand.Intn(math.MaxUint16)
+	id := rand.Intn(math.MaxUint16) & 0xffff
+
 	ipAddr := net.IPAddr{IP: net.ParseIP(m.Address)}
-	pid := os.Getpid() & 0xffff
 
 	for i := 1; i <= count; i++ {
 		time.Sleep(m.interval)
@@ -165,15 +166,15 @@ func (m *MTR) discover(ch chan struct{}, count int) {
 			var hopReturn icmp.ICMPReturn
 			var err error
 			if ipAddr.IP.To4() != nil {
-				hopReturn, err = icmp.SendDiscoverICMP(m.SrcAddress, &ipAddr, ttl, pid, m.timeout, seq)
+				hopReturn, err = icmp.SendDiscoverICMP(m.SrcAddress, &ipAddr, ttl, id, m.timeout, seq)
 			} else {
-				hopReturn, err = icmp.SendDiscoverICMPv6(m.SrcAddress, &ipAddr, ttl, pid, m.timeout, seq)
+				hopReturn, err = icmp.SendDiscoverICMPv6(m.SrcAddress, &ipAddr, ttl, id, m.timeout, seq)
 			}
 
 			m.mutex.Lock()
 			s := m.registerStatistic(ttl, hopReturn)
 			s.Dest = &ipAddr
-			s.PID = pid
+			s.PID = id
 			m.mutex.Unlock()
 			ch <- struct{}{}
 			if hopReturn.Addr == m.Address {
