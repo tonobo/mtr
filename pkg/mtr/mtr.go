@@ -9,7 +9,10 @@ import (
 	"sync"
 	"time"
 
-	gm "github.com/buger/goterm"
+	//ui "github.com/gizak/termui"
+	//"github.com/gizak/termui/widgets"
+	tb "github.com/nsf/termbox-go"
+
 	"github.com/tonobo/mtr/pkg/hop"
 	"github.com/tonobo/mtr/pkg/icmp"
 )
@@ -131,11 +134,11 @@ func addTarget(currentTargets []string, toAdd string) []string {
 
 // TODO: aggregates everything using the first target even when there are multiple
 func (m *MTR) Render(offset int) {
-	gm.MoveCursor(1, offset)
+	tb.SetCursor(0, 0)
 	l := fmt.Sprintf("%d", m.ringBufferSize)
-	gm.Printf("HOP:    %-20s  %5s%%  %4s  %6s  %6s  %6s  %6s  %"+l+"s\n", "Address", "Loss", "Sent", "Last", "Avg", "Best", "Worst", "Packets")
+	fmt.Printf("HOP:    %-20s  %5s%%  %4s  %6s  %6s  %6s  %6s  %"+l+"s\n", "Address", "Loss", "Sent", "Last", "Avg", "Best", "Worst", "Packets")
 	for i := 1; i <= len(m.Statistic); i++ {
-		gm.MoveCursor(1, offset+i)
+		tb.HideCursor()
 		m.mutex.RLock()
 		m.Statistic[i].Render(m.ptrLookup)
 		m.mutex.RUnlock()
