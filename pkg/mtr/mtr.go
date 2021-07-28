@@ -190,4 +190,5 @@ func (m *MTR) discover(ch chan struct{}, count int) {
 			unknownHopsCount = 0
 		}
 	}
+	close(ch)
 }

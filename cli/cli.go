@@ -62,13 +62,16 @@ var RootCmd = &cobra.Command{
 		go func(ch chan struct{}) {
 			for {
 				mu.Lock()
-				<-ch
+				_, isOpen := <-ch
+				if !isOpen {
+					mu.Unlock()
+					return
+				}
 				render(m)
 				mu.Unlock()
 			}
 		}(ch)
 		m.Run(ch, COUNT)
-		close(ch)
 		mu.Lock()
 		render(m)
 		mu.Unlock()
