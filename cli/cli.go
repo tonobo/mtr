@@ -6,9 +6,9 @@ import (
 	"time"
 
 	tm "github.com/buger/goterm"
-	"github.com/grafana/mtr/pkg/mtr"
 	pj "github.com/hokaccha/go-prettyjson"
 	"github.com/spf13/cobra"
+	"github.com/tonobo/mtr/pkg/mtr"
 )
 
 var (

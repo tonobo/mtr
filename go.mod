@@ -1,4 +1,4 @@
-module github.com/grafana/mtr
+module github.com/tonobo/mtr
 
 require (
 	github.com/buger/goterm v0.0.0-20181115115552-c206103e1f37

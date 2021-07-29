@@ -4,7 +4,7 @@ A MTR implementation written in golang, completely without shell-execs.
 
 Just install with the following command:
 ```
-go get -u github.com/grafana/mtr
+go get -u github.com/tonobo/mtr
 sudo setcap cap_net_raw+ep PATH-TO-GOMTR
 ```
 or a precompiled version

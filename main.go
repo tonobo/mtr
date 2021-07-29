@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/grafana/mtr/cli"
+	"github.com/tonobo/mtr/cli"
 )
 
 func main() {
