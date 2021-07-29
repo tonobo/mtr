@@ -6,9 +6,9 @@ import (
 	"time"
 
 	tm "github.com/buger/goterm"
+	"github.com/grafana/mtr/pkg/mtr"
 	pj "github.com/hokaccha/go-prettyjson"
 	"github.com/spf13/cobra"
-	"github.com/tonobo/mtr/pkg/mtr"
 )
 
 var (
@@ -43,12 +43,15 @@ var RootCmd = &cobra.Command{
 			return err
 		}
 		if jsonFmt {
-			go func(ch chan struct{}) {
+			go func(ch <-chan struct{}) {
 				for {
-					<-ch
+					_, isOpen := <-ch
+					if !isOpen {
+						return
+					}
 				}
 			}(ch)
-			m.Run(ch, COUNT)
+			m.Run(COUNT)
 			s, err := pj.Marshal(m)
 			if err != nil {
 				return err
@@ -59,7 +62,7 @@ var RootCmd = &cobra.Command{
 		fmt.Println("Start:", time.Now())
 		tm.Clear()
 		mu := &sync.Mutex{}
-		go func(ch chan struct{}) {
+		go func(ch <-chan struct{}) {
 			for {
 				mu.Lock()
 				_, isOpen := <-ch
@@ -71,7 +74,7 @@ var RootCmd = &cobra.Command{
 				mu.Unlock()
 			}
 		}(ch)
-		m.Run(ch, COUNT)
+		m.Run(COUNT)
 		mu.Lock()
 		render(m)
 		mu.Unlock()
