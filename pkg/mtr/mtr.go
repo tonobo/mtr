@@ -26,10 +26,11 @@ type MTR struct {
 	maxHops        int
 	maxUnknownHops int
 	ptrLookup      bool
+	channel        chan struct{}
 }
 
 func NewMTR(addr, srcAddr string, timeout time.Duration, interval time.Duration,
-	hopsleep time.Duration, maxHops, maxUnknownHops, ringBufferSize int, ptr bool) (*MTR, chan struct{}, error) {
+	hopsleep time.Duration, maxHops, maxUnknownHops, ringBufferSize int, ptr bool) (*MTR, <-chan struct{}, error) {
 	if net.ParseIP(addr) == nil {
 		addrs, err := net.LookupHost(addr)
 		if err != nil || len(addrs) == 0 {
@@ -44,6 +45,7 @@ func NewMTR(addr, srcAddr string, timeout time.Duration, interval time.Duration,
 			srcAddr = "::"
 		}
 	}
+	ch := make(chan struct{})
 	return &MTR{
 		SrcAddress:     srcAddr,
 		interval:       interval,
@@ -56,7 +58,8 @@ func NewMTR(addr, srcAddr string, timeout time.Duration, interval time.Duration,
 		ringBufferSize: ringBufferSize,
 		maxUnknownHops: maxUnknownHops,
 		ptrLookup:      ptr,
-	}, make(chan struct{}), nil
+		channel:        ch,
+	}, ch, nil
 }
 
 func (m *MTR) registerStatistic(ttl int, r icmp.ICMPReturn) *hop.HopStatistic {
@@ -142,12 +145,13 @@ func (m *MTR) Render(offset int) {
 	}
 }
 
-func (m *MTR) Run(ch chan struct{}, count int) {
-	m.discover(ch, count)
+func (m *MTR) Run(count int) {
+	m.discover(count)
+	close(m.channel)
 }
 
 // discover discovers all hops on the route
-func (m *MTR) discover(ch chan struct{}, count int) {
+func (m *MTR) discover(count int) {
 	// Sequences are incrementing as we don't won't to get old replys which might be from a previous run (where we timed out and continued).
 	// We can't use the process id as unique identifier as there might be multiple runs within a single binary, thus we use a fixed pseudo random number.
 	rand.Seed(time.Now().UnixNano())
@@ -176,7 +180,7 @@ func (m *MTR) discover(ch chan struct{}, count int) {
 			s.Dest = &ipAddr
 			s.PID = id
 			m.mutex.Unlock()
-			ch <- struct{}{}
+			m.channel <- struct{}{}
 			if hopReturn.Addr == m.Address {
 				break
 			}
