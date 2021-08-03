@@ -146,18 +146,20 @@ func (m *MTR) Render(offset int) {
 	}
 }
 
-func (m *MTR) RunWithContext(ctx context.Context, count int) {
-	m.discover(ctx, count)
+func (m *MTR) RunWithContext(ctx context.Context, count int) bool {
+	success := m.discover(ctx, count)
 	close(m.channel)
+	return success
 }
 
-func (m *MTR) Run(count int) {
+func (m *MTR) Run(count int) bool {
 	ctx := context.Background()
-	m.RunWithContext(ctx, count)
+	success := m.RunWithContext(ctx, count)
+	return success
 }
 
 // discover discovers all hops on the route
-func (m *MTR) discover(ctx context.Context, count int) {
+func (m *MTR) discover(ctx context.Context, count int) bool {
 	// Sequences are incrementing as we don't won't to get old replys which might be from a previous run (where we timed out and continued).
 	// We can't use the process id as unique identifier as there might be multiple runs within a single binary, thus we use a fixed pseudo random number.
 	rand.Seed(time.Now().UnixNano())
@@ -169,14 +171,14 @@ func (m *MTR) discover(ctx context.Context, count int) {
 	for i := 1; i <= count; i++ {
 		select {
 		case <-ctx.Done():
-			return
+			return false
 		case <-time.After(m.interval):
 			unknownHopsCount := 0
 			for ttl := 1; ttl < m.maxHops; ttl++ {
 				seq++
 				select {
 				case <-ctx.Done():
-					return
+					return false
 				case <-time.After(m.hopsleep):
 					var hopReturn icmp.ICMPReturn
 					var err error
@@ -207,4 +209,5 @@ func (m *MTR) discover(ctx context.Context, count int) {
 			}
 		}
 	}
+	return true
 }
