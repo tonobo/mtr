@@ -15,7 +15,8 @@ import (
 	"github.com/tonobo/mtr/pkg/icmp"
 )
 
-var TimeoutErr = fmt.Errorf("Timed out before trace could complete")
+var ErrTimeout = fmt.Errorf("timed out before trace could complete")
+var ErrMaxUnknownHops = fmt.Errorf("max unknown hops exceeded")
 
 type MTR struct {
 	SrcAddress     string `json:"source"`
@@ -173,14 +174,16 @@ func (m *MTR) discover(ctx context.Context, count int) error {
 	for i := 1; i <= count; i++ {
 		select {
 		case <-ctx.Done():
-			return TimeoutErr
+			return ErrTimeout
 		case <-time.After(m.interval):
 			unknownHopsCount := 0
+
+		ttlLoop:
 			for ttl := 1; ttl < m.maxHops; ttl++ {
 				seq++
 				select {
 				case <-ctx.Done():
-					return TimeoutErr
+					return ErrTimeout
 				case <-time.After(m.hopsleep):
 					var hopReturn icmp.ICMPReturn
 					var err error
@@ -197,14 +200,14 @@ func (m *MTR) discover(ctx context.Context, count int) error {
 					m.mutex.Unlock()
 					m.channel <- struct{}{}
 					if hopReturn.Addr == m.Address {
-						break
+						break ttlLoop
 					}
 					if err != nil || !hopReturn.Success {
 						unknownHopsCount++
 						if unknownHopsCount >= m.maxUnknownHops {
-							break
+							return ErrMaxUnknownHops
 						}
-						continue
+						continue ttlLoop
 					}
 					unknownHopsCount = 0
 				}
