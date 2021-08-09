@@ -2,6 +2,7 @@ package mtr
 
 import (
 	"container/ring"
+	"context"
 	"fmt"
 	"math"
 	"math/rand"
@@ -13,6 +14,9 @@ import (
 	"github.com/tonobo/mtr/pkg/hop"
 	"github.com/tonobo/mtr/pkg/icmp"
 )
+
+var ErrTimeout = fmt.Errorf("timed out before trace could complete")
+var ErrMaxUnknownHops = fmt.Errorf("max unknown hops exceeded")
 
 type MTR struct {
 	SrcAddress     string `json:"source"`
@@ -145,13 +149,20 @@ func (m *MTR) Render(offset int) {
 	}
 }
 
-func (m *MTR) Run(count int) {
-	m.discover(count)
+func (m *MTR) RunWithContext(ctx context.Context, count int) error {
+	err := m.discover(ctx, count)
 	close(m.channel)
+	return err
+}
+
+func (m *MTR) Run(count int) error {
+	ctx := context.Background()
+	err := m.RunWithContext(ctx, count)
+	return err
 }
 
 // discover discovers all hops on the route
-func (m *MTR) discover(count int) {
+func (m *MTR) discover(ctx context.Context, count int) error {
 	// Sequences are incrementing as we don't won't to get old replys which might be from a previous run (where we timed out and continued).
 	// We can't use the process id as unique identifier as there might be multiple runs within a single binary, thus we use a fixed pseudo random number.
 	rand.Seed(time.Now().UnixNano())
@@ -161,37 +172,47 @@ func (m *MTR) discover(count int) {
 	ipAddr := net.IPAddr{IP: net.ParseIP(m.Address)}
 
 	for i := 1; i <= count; i++ {
-		time.Sleep(m.interval)
+		select {
+		case <-ctx.Done():
+			return ErrTimeout
+		case <-time.After(m.interval):
+			unknownHopsCount := 0
 
-		unknownHopsCount := 0
-		for ttl := 1; ttl < m.maxHops; ttl++ {
-			seq++
-			time.Sleep(m.hopsleep)
-			var hopReturn icmp.ICMPReturn
-			var err error
-			if ipAddr.IP.To4() != nil {
-				hopReturn, err = icmp.SendDiscoverICMP(m.SrcAddress, &ipAddr, ttl, id, m.timeout, seq)
-			} else {
-				hopReturn, err = icmp.SendDiscoverICMPv6(m.SrcAddress, &ipAddr, ttl, id, m.timeout, seq)
-			}
+		ttlLoop:
+			for ttl := 1; ttl < m.maxHops; ttl++ {
+				seq++
+				select {
+				case <-ctx.Done():
+					return ErrTimeout
+				case <-time.After(m.hopsleep):
+					var hopReturn icmp.ICMPReturn
+					var err error
+					if ipAddr.IP.To4() != nil {
+						hopReturn, err = icmp.SendDiscoverICMP(m.SrcAddress, &ipAddr, ttl, id, m.timeout, seq)
+					} else {
+						hopReturn, err = icmp.SendDiscoverICMPv6(m.SrcAddress, &ipAddr, ttl, id, m.timeout, seq)
+					}
 
-			m.mutex.Lock()
-			s := m.registerStatistic(ttl, hopReturn)
-			s.Dest = &ipAddr
-			s.PID = id
-			m.mutex.Unlock()
-			m.channel <- struct{}{}
-			if hopReturn.Addr == m.Address {
-				break
-			}
-			if err != nil || !hopReturn.Success {
-				unknownHopsCount++
-				if unknownHopsCount >= m.maxUnknownHops {
-					break
+					m.mutex.Lock()
+					s := m.registerStatistic(ttl, hopReturn)
+					s.Dest = &ipAddr
+					s.PID = id
+					m.mutex.Unlock()
+					m.channel <- struct{}{}
+					if hopReturn.Addr == m.Address {
+						break ttlLoop
+					}
+					if err != nil || !hopReturn.Success {
+						unknownHopsCount++
+						if unknownHopsCount >= m.maxUnknownHops {
+							return ErrMaxUnknownHops
+						}
+						continue ttlLoop
+					}
+					unknownHopsCount = 0
 				}
-				continue
 			}
-			unknownHopsCount = 0
 		}
 	}
+	return nil
 }
