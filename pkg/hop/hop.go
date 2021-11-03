@@ -145,7 +145,7 @@ func (h *HopStatistic) Render(ptrLookup bool) {
 	l := fmt.Sprintf("%d", h.RingBufferSize)
 	gm.Printf("%3d:|-- %-20s  %5.1f%%  %4d  %6.1f  %6.1f  %6.1f  %6.1f  %"+l+"s\n",
 		h.TTL,
-		fmt.Sprintf("%.20s", h.lookupAddr(ptrLookup, 0)),
+		fmt.Sprintf("%.20s", h.LookupAddr(ptrLookup, 0)),
 		h.Loss(),
 		h.Sent,
 		h.Last.Elapsed.Seconds()*1000,
@@ -156,8 +156,11 @@ func (h *HopStatistic) Render(ptrLookup bool) {
 	)
 }
 
-func (h *HopStatistic) lookupAddr(ptrLookup bool, index int) string {
-	addr := "???"
+func (h *HopStatistic) LookupAddr(ptrLookup bool, index int) string {
+	if h.dnsCache == nil {
+		h.dnsCache = map[string]string{}
+	}
+	addr := ""
 	if h.Targets[index] != "" {
 		addr = h.Targets[index]
 		if ptrLookup {
