@@ -339,7 +339,7 @@ End of functions from https://github.com/client9/shlib
 EOF
 
 PROJECT_NAME="mtr"
-OWNER=tonobo
+OWNER="tonobo"
 REPO="mtr"
 BINARY=mtr
 FORMAT=tar.gz

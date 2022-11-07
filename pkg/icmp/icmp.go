@@ -155,15 +155,41 @@ func listenForSpecific6(conn *icmp.PacketConn, deadline time.Time, neededPeer st
 		}
 
 		if x.Type.(ipv6.ICMPType) == ipv6.ICMPTypeTimeExceeded {
-			body := x.Body.(*icmp.TimeExceeded).Data
-			x, _ := icmp.ParseMessage(ProtocolIPv6ICMP, body[40:])
-			switch x.Body.(type) {
+			msg, ok := x.Body.(*icmp.TimeExceeded)
+			if !ok { // this should never happen
+				continue
+			}
+
+			// Be defensive regarding the junk we might end up
+			// getting here. Make sure the ICMP packet contains. an
+			// IPv6 packet.
+			_, err := ipv6.ParseHeader(msg.Data)
+			if err != nil {
+				continue
+			}
+
+			echoPkt := msg.Data[ipv6.HeaderLen:]
+
+			icmpMsg, err := icmp.ParseMessage(ProtocolIPv6ICMP, echoPkt)
+			if err != nil {
+				// We cannot error out here because we
+				// don't know if this packet was the
+				// one we were expecting or the one we
+				// were expecting is still in flight.
+				//
+				// To make that decision we need to be
+				// able to parse the packet.
+				continue
+			}
+
+			switch body := icmpMsg.Body.(type) {
 			case *icmp.Echo:
-				echoBody := x.Body.(*icmp.Echo)
-				if echoBody.Seq == needSeq && echoBody.ID == id {
+				if body.Seq == needSeq && body.ID == id {
 					return peer.String(), []byte{}, nil
 				}
+
 				continue
+
 			default:
 				// ignore
 			}
@@ -206,22 +232,58 @@ func listenForSpecific4(conn *icmp.PacketConn, deadline time.Time, neededPeer st
 			continue
 		}
 
-		if typ, ok := x.Type.(ipv4.ICMPType); ok && typ.String() == "time exceeded" {
-			body := x.Body.(*icmp.TimeExceeded).Data
+		if typ, ok := x.Type.(ipv4.ICMPType); ok && typ == ipv4.ICMPTypeTimeExceeded {
+			msg, ok := x.Body.(*icmp.TimeExceeded)
+			if !ok { // this should never happen
+				continue
+			}
 
-			index := bytes.Index(body, sent[:4])
-			if index > 0 {
-				x, _ := icmp.ParseMessage(ProtocolICMP, body[index:])
-				switch x.Body.(type) {
-				case *icmp.Echo:
-					echoBody := x.Body.(*icmp.Echo)
-					if echoBody.Seq == needSeq && echoBody.ID == pid {
-						return peer.String(), []byte{}, nil
-					}
-					continue
-				default:
-					// ignore
+			// Be defensive regarding the junk we might end up
+			// getting here. Make sure the ICMP packet contains:
+			// 1. an IPv4 packet
+			hdr, err := ipv4.ParseHeader(msg.Data)
+			if err != nil {
+				continue
+			}
+
+			// 2. containing an ICMP packet
+			if hdr.Protocol != ProtocolICMP {
+				continue
+			}
+
+			// 3. with a length that makes sense
+			echoPkt := msg.Data[hdr.Len:]
+			if len(sent) < 4 || len(echoPkt) < 4 {
+				continue
+			}
+
+			// The echo packet should match what we sent.
+			if !bytes.Equal(sent[:4], echoPkt[:4]) {
+				continue
+			}
+
+			icmpMsg, err := icmp.ParseMessage(ProtocolICMP, echoPkt)
+			if err != nil {
+				// We cannot error out here because we
+				// don't know if this packet was the
+				// one we were expecting or the one we
+				// were expecting is still in flight.
+				//
+				// To make that decision we need to be
+				// able to parse the packet.
+				continue
+			}
+
+			switch body := icmpMsg.Body.(type) {
+			case *icmp.Echo:
+				if body.Seq == needSeq && body.ID == pid {
+					return peer.String(), []byte{}, nil
 				}
+
+				continue
+
+			default:
+				// ignore
 			}
 		}
 

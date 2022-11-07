@@ -43,12 +43,15 @@ var RootCmd = &cobra.Command{
 			return err
 		}
 		if jsonFmt {
-			go func(ch chan struct{}) {
+			go func(ch <-chan struct{}) {
 				for {
-					<-ch
+					_, isOpen := <-ch
+					if !isOpen {
+						return
+					}
 				}
 			}(ch)
-			m.Run(ch, COUNT)
+			m.Run(COUNT)
 			s, err := pj.Marshal(m)
 			if err != nil {
 				return err
@@ -59,16 +62,19 @@ var RootCmd = &cobra.Command{
 		fmt.Println("Start:", time.Now())
 		tm.Clear()
 		mu := &sync.Mutex{}
-		go func(ch chan struct{}) {
+		go func(ch <-chan struct{}) {
 			for {
 				mu.Lock()
-				<-ch
+				_, isOpen := <-ch
+				if !isOpen {
+					mu.Unlock()
+					return
+				}
 				render(m)
 				mu.Unlock()
 			}
 		}(ch)
-		m.Run(ch, COUNT)
-		close(ch)
+		m.Run(COUNT)
 		mu.Lock()
 		render(m)
 		mu.Unlock()
